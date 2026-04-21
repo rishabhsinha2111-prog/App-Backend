@@ -166,6 +166,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
 .spark{display:flex;align-items:flex-end;gap:2px;height:28px}
 .sb{flex:1;border-radius:2px 2px 0 0;min-width:7px}
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -926,7 +927,8 @@ async function getGoogleToken() {
   return new Promise(resolve=>{
     if(window.google?.accounts?.oauth2) {
       const client = google.accounts.oauth2.initTokenClient({
-        client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+        client_id: "796721484947-p13kan6u6rleaj2f6jq81tb1s5hsc19o.apps.googleusercontent.com",
+        //client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
         scope: "https://www.googleapis.com/auth/spreadsheets",
         callback: resp => resolve(resp.access_token)
       });
