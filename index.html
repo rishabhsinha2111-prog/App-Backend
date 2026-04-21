@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0F3460">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SalesOps">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>SalesOps Field App</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --brand:#0F3460;--brand2:#16213E;--hi:#E94560;
+  --bg:#F5F6FA;--card:#fff;--border:#E8E9F0;
+  --text:#1A1A2E;--text2:#6B7280;--text3:#9CA3AF;
+  --green:#1A6B32;--green-bg:#D6F0DC;
+  --amber:#856404;--amber-bg:#FFF3CD;
+  --red:#8B1A1A;--red-bg:#FDDCDC;
+  --blue:#1A3A8B;--blue-bg:#DCE8FF;
+  --r:12px;--r-sm:8px;--f:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif
+}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#0D0F14;--card:#1A1D25;--border:#2A2D38;--text:#E8EAF0;--text2:#9CA3AF;--text3:#6B7280}
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);font-family:var(--f);color:var(--text)}
+#app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;background:var(--bg)}
+
+/* ── LOGIN ── */
+#login-screen{display:flex;flex-direction:column;justify-content:center;padding:32px 24px;height:100%;background:var(--brand2)}
+.login-logo{font-size:32px;font-weight:800;color:#fff;margin-bottom:6px;letter-spacing:-1px}
+.login-logo span{color:var(--hi)}
+.login-sub{font-size:14px;color:rgba(255,255,255,.5);margin-bottom:40px}
+.login-label{font-size:12px;font-weight:600;color:rgba(255,255,255,.6);letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px}
+.login-input{width:100%;padding:14px 16px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:var(--r);color:#fff;font-size:15px;font-family:var(--f);margin-bottom:12px;outline:none}
+.login-input::placeholder{color:rgba(255,255,255,.35)}
+.login-input:focus{border-color:rgba(255,255,255,.4)}
+.login-btn{width:100%;padding:15px;background:var(--hi);border:none;border-radius:var(--r);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:var(--f);margin-top:8px}
+.login-btn:active{opacity:.88}
+.login-err{color:#ff6b6b;font-size:13px;text-align:center;margin-top:8px;min-height:20px}
+
+/* ── TOPBAR ── */
+#topbar{background:var(--brand2);padding:14px 16px 12px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.tb-left .tb-name{font-size:16px;font-weight:700;color:#fff}
+.tb-left .tb-zone{font-size:11px;color:rgba(255,255,255,.5);margin-top:1px}
+.tb-right{display:flex;align-items:center;gap:10px}
+.tb-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7)}
+.tb-logout{background:transparent;border:none;color:rgba(255,255,255,.5);font-size:12px;cursor:pointer;font-family:var(--f);padding:4px 8px}
+
+/* ── SCROLL BODY ── */
+#body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px 80px}
+
+/* ── BOTTOM NAV ── */
+#bnav{display:flex;background:var(--card);border-top:1px solid var(--border);flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
+.nb{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px 8px;gap:3px;cursor:pointer;border:none;background:transparent;font-family:var(--f);position:relative}
+.ni{font-size:20px;line-height:1}
+.nl{font-size:10px;color:var(--text2)}
+.nb.active .nl{color:var(--brand);font-weight:700}
+.nb-dot{position:absolute;top:6px;right:calc(50% - 14px);width:7px;height:7px;border-radius:50%;background:var(--hi);display:none}
+.nb-dot.show{display:block}
+
+/* ── SCREENS ── */
+.scr{display:none}.scr.active{display:block}
+
+/* ── CARDS ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 15px;margin-bottom:10px}
+.card-title{font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+
+/* ── HERO ── */
+.hero{background:var(--brand2);border-radius:var(--r);padding:16px;margin-bottom:10px;overflow:hidden;position:relative}
+.hero::after{content:'';position:absolute;right:-24px;top:-24px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.04)}
+.hero-greeting{font-size:12px;color:rgba(255,255,255,.5);margin-bottom:4px}
+.hero-name{font-size:22px;font-weight:800;color:#fff}
+.hero-zone{font-size:12px;color:rgba(255,255,255,.4);margin-top:2px}
+.hg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.hgs{background:rgba(255,255,255,.08);border-radius:10px;padding:10px 8px;text-align:center}
+.hgv{font-size:20px;font-weight:800;color:#fff}
+.hgl{font-size:10px;color:rgba(255,255,255,.4);margin-top:2px}
+
+/* ── BADGES ── */
+.b{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+.b-g{background:var(--green-bg);color:var(--green)}
+.b-a{background:var(--amber-bg);color:var(--amber)}
+.b-r{background:var(--red-bg);color:var(--red)}
+.b-b{background:var(--blue-bg);color:var(--blue)}
+.b-gray{background:var(--border);color:var(--text2)}
+
+/* ── INPUTS ── */
+input[type=text],input[type=number],input[type=password],select,textarea{
+  width:100%;padding:11px 13px;font-size:14px;
+  border:1px solid var(--border);border-radius:var(--r-sm);
+  background:var(--card);color:var(--text);
+  font-family:var(--f);outline:none;
+  -webkit-appearance:none;appearance:none
+}
+input:focus,select:focus,textarea:focus{border-color:var(--brand)}
+.field{margin-bottom:12px}
+.field-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:5px;display:block}
+
+/* ── BUTTONS ── */
+.btn{padding:12px 18px;font-size:14px;font-weight:700;border:none;border-radius:var(--r);cursor:pointer;font-family:var(--f);transition:opacity .15s}
+.btn:active{opacity:.85}
+.btn-brand{background:var(--brand);color:#fff;width:100%}
+.btn-hi{background:var(--hi);color:#fff;width:100%}
+.btn-out{background:transparent;border:1px solid var(--border);color:var(--text);width:100%}
+.btn-sm{padding:7px 14px;font-size:13px}
+
+/* ── PROGRESS ── */
+.pbar{height:5px;border-radius:3px;background:var(--border);overflow:hidden;margin-top:5px}
+.pf{height:100%;border-radius:3px;transition:width .4s}
+
+/* ── VISIT ROW ── */
+.vrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.vrow:last-child{border-bottom:none;padding-bottom:0}
+.av{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.av-b{background:var(--blue-bg);color:var(--blue)}
+.av-g{background:var(--green-bg);color:var(--green)}
+.av-r{background:var(--red-bg);color:var(--red)}
+
+/* ── PILLS ── */
+.pill-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;-webkit-overflow-scrolling:touch}
+.pill-row::-webkit-scrollbar{display:none}
+.pill{flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);color:var(--text2);background:transparent;font-family:var(--f)}
+.pill.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+/* ── ENTITY CARD ── */
+.ent{border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden}
+.ent-hdr{background:var(--bg);padding:10px 13px;display:flex;align-items:center;gap:9px;cursor:pointer}
+.ent-body{padding:12px 13px;border-top:1px solid var(--border)}
+.metric-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.metric-box{background:var(--bg);border-radius:8px;padding:8px 6px;text-align:center}
+.metric-v{font-size:15px;font-weight:800}
+.metric-l{font-size:9px;color:var(--text2);margin-top:2px}
+.week-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.week-row:last-child{border-bottom:none;padding-bottom:0}
+
+/* ── CHECK BTN ── */
+.chk{width:24px;height:24px;border-radius:7px;border:1.5px solid var(--border);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text2);flex-shrink:0;font-family:var(--f)}
+.chk.done{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+.chk.missed{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+
+/* ── OFFLINE BANNER ── */
+#offline-banner{display:none;background:#856404;color:#fff;text-align:center;font-size:12px;padding:6px;flex-shrink:0}
+#offline-banner.show{display:block}
+
+/* ── SYNC STATUS ── */
+#sync-status{font-size:11px;color:var(--text3);text-align:center;padding:4px;flex-shrink:0}
+
+/* ── SLBL ── */
+.slbl{font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.06em;text-transform:uppercase;margin:14px 0 8px}
+
+/* ── MANAGER BANNER ── */
+.mgr-banner{background:var(--brand);border-radius:var(--r);padding:12px 15px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.mgr-banner-text{font-size:13px;color:#fff;font-weight:600}
+.mgr-banner-sub{font-size:11px;color:rgba(255,255,255,.6);margin-top:2px}
+
+/* ── ALERT ITEM ── */
+.alert-item{display:flex;align-items:center;gap:10px;padding:10px 13px;border-bottom:1px solid var(--border)}
+.alert-item:last-child{border-bottom:none}
+.alert-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* ── SPARK ── */
+.spark{display:flex;align-items:flex-end;gap:2px;height:28px}
+.sb{flex:1;border-radius:2px 2px 0 0;min-width:7px}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="offline-banner">No internet connection — working offline</div>
+  <div id="sync-status"></div>
+
+  <!-- LOGIN -->
+  <div id="login-screen">
+    <div class="login-logo">Sales<span>Ops</span></div>
+    <div class="login-sub">Field operations platform</div>
+    <div class="login-label">Your name</div>
+    <input class="login-input" id="login-name" type="text" placeholder="e.g. Arjun Sharma" autocomplete="name">
+    <div class="login-label">PIN</div>
+    <input class="login-input" id="login-pin" type="password" placeholder="4-digit PIN" maxlength="4" inputmode="numeric">
+    <button class="login-btn" onclick="doLogin()">Sign in</button>
+    <div class="login-err" id="login-err"></div>
+    <div style="margin-top:20px;font-size:11px;color:rgba(255,255,255,.3);text-align:center">Demo: use any name + PIN 1234 · Manager: name "Manager" + PIN 9999</div>
+  </div>
+
+  <!-- MAIN APP (hidden until login) -->
+  <div id="main-app" style="display:none;flex-direction:column;height:100%">
+    <div id="topbar">
+      <div class="tb-left">
+        <div class="tb-name" id="tb-name">—</div>
+        <div class="tb-zone" id="tb-zone">—</div>
+      </div>
+      <div class="tb-right">
+        <div class="tb-badge" id="tb-week">—</div>
+        <button class="tb-logout" onclick="doLogout()">Sign out</button>
+      </div>
+    </div>
+
+    <div id="body">
+      <!-- HOME -->
+      <div id="scr-home" class="scr active">
+        <div class="hero">
+          <div class="hero-greeting" id="h-greeting">Good morning</div>
+          <div class="hero-name" id="h-name">—</div>
+          <div class="hero-zone" id="h-zone">—</div>
+          <div class="hg">
+            <div class="hgs"><div class="hgv" id="hs-sec">—</div><div class="hgl">Sec avg %</div></div>
+            <div class="hgs"><div class="hgv" id="hs-pri">—</div><div class="hgl">Pri avg %</div></div>
+            <div class="hgs"><div class="hgv" id="hs-exec">—</div><div class="hgl">PJP done</div></div>
+          </div>
+        </div>
+        <div class="slbl">Alerts this week</div>
+        <div class="card" id="home-alerts" style="padding:0"></div>
+        <div class="slbl">Quick actions</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <button class="btn btn-brand" onclick="goScr('tracker')">Enter data</button>
+          <button class="btn btn-out" onclick="goScr('pjp')">View PJP</button>
+          <button class="btn btn-out" style="grid-column:span 2" onclick="goScr('trends')">Trends &amp; history</button>
+        </div>
+        <!-- Manager only section -->
+        <div id="mgr-section" style="display:none">
+          <div class="slbl">Manager overview</div>
+          <div id="mgr-rsm-list"></div>
+        </div>
+      </div>
+
+      <!-- TRACKER -->
+      <div id="scr-tracker" class="scr">
+        <div class="slbl" style="margin-top:0">Week label</div>
+        <div class="field"><input type="text" id="trk-week" placeholder="e.g. W2 Apr 2025"></div>
+        <div class="slbl">SS — secondary achievement</div>
+        <div id="trk-ss-list"></div>
+        <div class="slbl">DB — primary billing</div>
+        <div id="trk-db-list"></div>
+        <div class="slbl">Vacant areas</div>
+        <div id="trk-vac-list"></div>
+        <button class="btn btn-brand" style="margin-top:14px" onclick="saveTracker()">Save &amp; archive to history</button>
+        <div id="trk-msg" style="text-align:center;font-size:12px;color:var(--text2);margin-top:8px;min-height:18px"></div>
+      </div>
+
+      <!-- TRENDS -->
+      <div id="scr-trends" class="scr">
+        <div style="display:flex;gap:6px;margin-bottom:12px">
+          <button class="pill active" id="tv-ss" onclick="setTrendView('ss',this)">SS-wise</button>
+          <button class="pill" id="tv-db" onclick="setTrendView('db',this)">DB-wise</button>
+        </div>
+        <div class="slbl" style="margin-top:0">Month</div>
+        <div class="pill-row" id="trend-months"></div>
+        <div id="trend-list"></div>
+      </div>
+
+      <!-- PJP -->
+      <div id="scr-pjp" class="scr">
+        <div class="slbl" style="margin-top:0">Month</div>
+        <div class="pill-row" id="pjp-months"></div>
+        <div id="pjp-exec-bar" style="margin-bottom:10px"></div>
+        <div class="slbl">Mark visits</div>
+        <div id="pjp-list"></div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div id="scr-settings" class="scr">
+        <div class="slbl" style="margin-top:0">Account</div>
+        <div class="card">
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px" id="set-name">—</div>
+          <div style="font-size:12px;color:var(--text2)" id="set-zone">—</div>
+        </div>
+        <div class="slbl">Google Sheet connection</div>
+        <div class="card">
+          <div class="field">
+            <label class="field-label">Sheet ID (from your Sheet URL)</label>
+            <input type="text" id="set-sheet-id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
+          </div>
+          <button class="btn btn-brand btn-sm" style="width:auto" onclick="saveSheetId()">Save &amp; connect</button>
+          <div id="set-conn-status" style="font-size:12px;color:var(--text2);margin-top:8px"></div>
+        </div>
+        <div class="slbl">App info</div>
+        <div class="card" style="font-size:13px;color:var(--text2);line-height:1.8">
+          Version 1.0 · SalesOps PWA<br>
+          Data syncs with Google Sheets<br>
+          Works offline — syncs when connected
+        </div>
+        <div style="margin-top:16px">
+          <button class="btn btn-out" onclick="doLogout()">Sign out</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="bnav">
+      <button class="nb active" onclick="goScr('home')">
+        <div class="ni">⌂</div><div class="nl">Home</div>
+        <div class="nb-dot" id="dot-home"></div>
+      </button>
+      <button class="nb" onclick="goScr('tracker')">
+        <div class="ni">✎</div><div class="nl">Tracker</div>
+      </button>
+      <button class="nb" onclick="goScr('pjp')">
+        <div class="ni">✓</div><div class="nl">PJP</div>
+      </button>
+      <button class="nb" onclick="goScr('trends')">
+        <div class="ni">↗</div><div class="nl">Trends</div>
+      </button>
+      <button class="nb" onclick="goScr('settings')">
+        <div class="ni">⚙</div><div class="nl">Settings</div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG — replace with your actual Sheet ID ────────────────
+const DEFAULT_SHEET_ID = "YOUR_SHEET_ID_HERE";
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAYS   = ["Mon","Tue","Wed","Thu","Fri","Sat"];
+
+// ── USER STORE ────────────────────────────────────────────────
+const USERS = {
+  "arjun sharma":  {zone:"Pune West",  pin:"1234", role:"rsm"},
+  "meena patil":   {zone:"Pune East",  pin:"1234", role:"rsm"},
+  "rahul nair":    {zone:"Nashik",     pin:"1234", role:"rsm"},
+  "manager":       {zone:"All zones",  pin:"9999", role:"manager"}
+};
+
+// ── MASTER DATA (mirrors your Google Sheet) ───────────────────
+const MASTER = {
+  "arjun sharma": {
+    ss:[{id:"s1",name:"Ravi Sales Co.",town:"Kothrud",secTgt:150000},
+        {id:"s2",name:"Om Agencies",town:"Deccan",secTgt:120000}],
+    dbs:[{id:"d1",name:"Kohinoor Dist.",ssId:"s1",priTgt:400000,area:"Active",mustVisit:false},
+         {id:"d2",name:"Sunrise Dist.",ssId:"s2",priTgt:300000,area:"Vacant",mustVisit:true}]
+  },
+  "meena patil": {
+    ss:[{id:"s3",name:"Metro Traders",town:"Hadapsar",secTgt:180000},
+        {id:"s4",name:"Pooja Enterp.",town:"Wanowrie",secTgt:90000}],
+    dbs:[{id:"d3",name:"Allied Corp",ssId:"s3",priTgt:500000,area:"Active",mustVisit:true},
+         {id:"d4",name:"City Dist.",ssId:"s4",priTgt:250000,area:"Active",mustVisit:false}]
+  },
+  "rahul nair": {
+    ss:[{id:"s5",name:"Nashik Depot",town:"Nashik Rd",secTgt:200000},
+        {id:"s6",name:"Green Traders",town:"Ozar",secTgt:110000}],
+    dbs:[{id:"d5",name:"Nashik Dist.",ssId:"s5",priTgt:600000,area:"Active",mustVisit:true},
+         {id:"d6",name:"Ozar Agencies",ssId:"s6",priTgt:200000,area:"Vacant",mustVisit:false}]
+  }
+};
+
+// ── APP STATE ─────────────────────────────────────────────────
+let STATE = {
+  user: null,
+  history: {},     // loaded from localStorage
+  pjpExec: {},     // loaded from localStorage
+  trendView: "ss",
+  curMonth: "Apr",
+  curPJPMonth: "Apr",
+  expanded: {},
+  sheetId: localStorage.getItem("sheetId") || DEFAULT_SHEET_ID
+};
+
+// ── HELPERS ───────────────────────────────────────────────────
+const fmt  = n  => "₹" + (n||0).toLocaleString("en-IN");
+const pct  = (a,t) => t > 0 ? Math.round(a/t*100) : 0;
+const pcls = p  => p>=100?"b-g":p>=70?"b-a":"b-r";
+const bcol = p  => p>=100?"#1a6b32":p>=70?"#856404":"#c0392b";
+const $ = id => document.getElementById(id);
+
+function greeting() {
+  const h = new Date().getHours();
+  return h<12?"Good morning":h<17?"Good afternoon":"Good evening";
+}
+
+// ── AUTH ──────────────────────────────────────────────────────
+function doLogin() {
+  const name = $("login-name").value.trim().toLowerCase();
+  const pin  = $("login-pin").value.trim();
+  const user = USERS[name];
+  if (!user || user.pin !== pin) {
+    $("login-err").textContent = "Name or PIN incorrect. Try again.";
+    return;
+  }
+  STATE.user = {name, displayName: $("login-name").value.trim(), ...user};
+  localStorage.setItem("lastUser", JSON.stringify(STATE.user));
+  loadLocalData();
+  startApp();
+}
+
+function doLogout() {
+  STATE.user = null;
+  $("main-app").style.display = "none";
+  $("login-screen").style.display = "flex";
+  $("login-pin").value = "";
+  $("login-err").textContent = "";
+}
+
+function startApp() {
+  $("login-screen").style.display = "none";
+  $("main-app").style.display = "flex";
+  $("main-app").style.flexDirection = "column";
+  $("main-app").style.height = "100%";
+
+  const u = STATE.user;
+  $("tb-name").textContent = u.displayName;
+  $("tb-zone").textContent = u.zone;
+  $("tb-week").textContent = _autoWeekLabel();
+  $("set-name").textContent = u.displayName;
+  $("set-zone").textContent = u.zone;
+  $("set-sheet-id").value = STATE.sheetId;
+
+  if (u.role === "manager") {
+    $("mgr-section").style.display = "block";
+  }
+
+  renderHome();
+  renderTracker();
+  renderTrends();
+  renderPJP();
+}
+
+// ── LOCAL DATA ────────────────────────────────────────────────
+function loadLocalData() {
+  const key = "history_" + STATE.user.name;
+  const stored = localStorage.getItem(key);
+  STATE.history = stored ? JSON.parse(stored) : _seedHistory();
+
+  const pKey = "pjpExec_" + STATE.user.name;
+  const pStored = localStorage.getItem(pKey);
+  STATE.pjpExec = pStored ? JSON.parse(pStored) : _seedPJP();
+}
+
+function saveLocalData() {
+  localStorage.setItem("history_" + STATE.user.name, JSON.stringify(STATE.history));
+  localStorage.setItem("pjpExec_" + STATE.user.name, JSON.stringify(STATE.pjpExec));
+}
+
+// ── SEED DATA (replace with real Sheet data once connected) ───
+function _seedHistory() {
+  const name = STATE.user.name;
+  const master = MASTER[name];
+  if (!master) return {};
+  const hist = {};
+  const months = ["Jan","Feb","Mar","Apr"];
+  const weeks  = ["W1","W2","W3","W4"];
+  master.ss.forEach(ss => {
+    hist[ss.id] = [];
+    months.forEach(m => {
+      weeks.forEach(w => {
+        const base = Math.random()*40+40;
+        hist[ss.id].push({
+          week:`${w} ${m}`, month:m,
+          secAch:Math.round(ss.secTgt*(base/100)),
+          secPct:Math.round(base)
+        });
+      });
+    });
+  });
+  master.dbs.forEach(db => {
+    hist[db.id] = [];
+    months.forEach(m => {
+      weeks.forEach(w => {
+        const base = Math.random()*40+40;
+        hist[db.id].push({
+          week:`${w} ${m}`, month:m,
+          priAch:Math.round(db.priTgt*(base/100)),
+          priPct:Math.round(base)
+        });
+      });
+    });
+  });
+  return hist;
+}
+
+function _seedPJP() {
+  const name = STATE.user.name;
+  const master = MASTER[name];
+  if (!master) return {};
+  const plan = {};
+  const months = ["Mar","Apr"];
+  months.forEach(m => {
+    plan[m] = [];
+    DAYS.forEach((day,di) => {
+      master.dbs.forEach((db,i) => {
+        if ((di+i)%2===0) {
+          plan[m].push({
+            week:`W${Math.ceil((di+1)/2)} ${m}`, day,
+            db:db.name, ss:master.ss.find(s=>s.id===db.ssId)?.name||"—",
+            score:Math.round(Math.random()*60+20),
+            mustVisit:db.mustVisit,
+            status: m==="Mar"?(Math.random()>0.2?"done":"missed"):"pending"
+          });
+        }
+      });
+    });
+  });
+  return plan;
+}
+
+function _autoWeekLabel() {
+  const now = new Date();
+  const wNum = Math.ceil(now.getDate()/7);
+  const month = now.toLocaleString("en-IN",{month:"short"});
+  return `W${wNum} ${month} ${now.getFullYear()}`;
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────
+function goScr(id) {
+  document.querySelectorAll(".scr").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".nb").forEach(b=>b.classList.remove("active"));
+  $("scr-"+id).classList.add("active");
+  const map={home:0,tracker:1,pjp:2,trends:3,settings:4};
+  if(map[id]!=null) document.querySelectorAll(".nb")[map[id]].classList.add("active");
+  if(id==="home")    renderHome();
+  if(id==="trends")  renderTrends();
+  if(id==="pjp")     renderPJP();
+  if(id==="tracker") renderTracker();
+}
+
+// ── HOME ──────────────────────────────────────────────────────
+function renderHome() {
+  const u = STATE.user;
+  $("h-greeting").textContent = greeting();
+  $("h-name").textContent = u.displayName;
+  $("h-zone").textContent = u.zone;
+
+  if (u.role === "manager") {
+    renderManagerHome();
+    return;
+  }
+
+  const master = MASTER[u.name];
+  if (!master) return;
+  const hist = STATE.history;
+  const curMonth = STATE.curMonth;
+
+  // Averages
+  let secSum=0,priSum=0,cnt=0;
+  master.ss.forEach(ss=>{
+    const d=(hist[ss.id]||[]).filter(h=>h.month===curMonth);
+    if(d.length){secSum+=d.reduce((a,h)=>a+h.secPct,0)/d.length;cnt++;}
+  });
+  master.dbs.forEach(db=>{
+    const d=(hist[db.id]||[]).filter(h=>h.month===curMonth);
+    if(d.length){priSum+=d.reduce((a,h)=>a+h.priPct,0)/d.length;}
+  });
+  const avgSec = cnt ? Math.round(secSum/cnt) : 0;
+  const avgPri = cnt ? Math.round(priSum/cnt) : 0;
+
+  const pjp = (STATE.pjpExec[curMonth]||[]);
+  const done = pjp.filter(v=>v.status==="done").length;
+  const execPct = pjp.length ? Math.round(done/pjp.length*100) : 0;
+
+  $("hs-sec").textContent = avgSec+"%";
+  $("hs-pri").textContent = avgPri+"%";
+  $("hs-exec").textContent = execPct+"%";
+
+  // Alerts
+  const alerts = [];
+  master.ss.forEach(ss=>{
+    const d=(hist[ss.id]||[]).filter(h=>h.month===curMonth);
+    const p=d.length?Math.round(d.reduce((a,h)=>a+h.secPct,0)/d.length):0;
+    if(p<70) alerts.push({type:"low",name:ss.name,sub:ss.town,pct:p});
+  });
+  master.dbs.filter(d=>d.area==="Vacant").forEach(db=>{
+    alerts.push({type:"vacant",name:db.name,sub:"Vacant area"});
+  });
+
+  const el = $("home-alerts");
+  if(!alerts.length){
+    el.innerHTML=`<div class="alert-item"><div class="alert-dot" style="background:var(--green)"></div><div style="font-size:13px;color:var(--text2)">All targets on track this week</div></div>`;
+  } else {
+    el.innerHTML=alerts.slice(0,4).map(a=>`
+      <div class="alert-item">
+        <div class="alert-dot" style="background:${a.type==="vacant"?"var(--blue)":"var(--red)"}"></div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${a.name}</div>
+          <div style="font-size:11px;color:var(--text2)">${a.sub}${a.pct!=null?" · "+a.pct+"% secondary":""}</div>
+        </div>
+        ${a.type==="vacant"?'<span class="b b-b">Vacant</span>':`<span class="b ${pcls(a.pct)}">${a.pct}%</span>`}
+      </div>`).join("");
+  }
+}
+
+function renderManagerHome() {
+  const u = STATE.user;
+  $("hs-sec").textContent = "—";
+  $("hs-pri").textContent = "—";
+  $("hs-exec").textContent = "—";
+  $("home-alerts").innerHTML = `<div class="alert-item"><div style="font-size:13px;color:var(--text2);padding:4px 0">Manager view — see all RSM performance below</div></div>`;
+
+  const el = $("mgr-rsm-list");
+  el.innerHTML = Object.entries(MASTER).map(([rsmName, master])=>{
+    const dispName = rsmName.split(" ").map(w=>w[0].toUpperCase()+w.slice(1)).join(" ");
+    const user = USERS[rsmName];
+    return `<div class="card" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="av av-b">${dispName.split(" ").map(w=>w[0]).join("").slice(0,2)}</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:14px">${dispName}</div>
+          <div style="font-size:11px;color:var(--text2)">${user?.zone||"—"} · ${master.dbs.length} DBs · ${master.ss.length} SS</div>
+        </div>
+        <span class="b b-gray">${master.dbs.filter(d=>d.mustVisit).length} mandatory</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ── TRACKER ───────────────────────────────────────────────────
+function renderTracker() {
+  const u = STATE.user;
+  if(u.role==="manager"){
+    $("trk-ss-list").innerHTML=`<div style="color:var(--text2);font-size:13px;padding:12px 0">Managers don't enter tracker data.</div>`;
+    $("trk-db-list").innerHTML="";
+    $("trk-vac-list").innerHTML="";
+    return;
+  }
+  const master = MASTER[u.name];
+  if(!master) return;
+
+  $("trk-ss-list").innerHTML = master.ss.map(ss=>`
+    <div class="card" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+        <div class="av av-b">${ss.name.slice(0,2).toUpperCase()}</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px">${ss.name}</div>
+          <div style="font-size:11px;color:var(--text2)">${ss.town} · Target ${fmt(ss.secTgt)}</div>
+        </div>
+        <span class="b b-gray" id="ss-pct-${ss.id}">—</span>
+      </div>
+      <input type="number" id="sec-${ss.id}" placeholder="Secondary achieved (₹)" oninput="livePct('sec','${ss.id}',${ss.secTgt})">
+    </div>`).join("");
+
+  $("trk-db-list").innerHTML = master.dbs.map(db=>`
+    <div class="card" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+        <div class="av av-g">${db.name.slice(0,2).toUpperCase()}</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px">${db.name}${db.mustVisit?` <span class="b b-a" style="font-size:10px">Must visit</span>`:""}</div>
+          <div style="font-size:11px;color:var(--text2)">Target ${fmt(db.priTgt)} · ${db.area}</div>
+        </div>
+        <span class="b b-gray" id="db-pct-${db.id}">—</span>
+      </div>
+      <input type="number" id="pri-${db.id}" placeholder="Primary billed (₹)" oninput="livePct('pri','${db.id}',${db.priTgt})">
+    </div>`).join("");
+
+  const vac = master.dbs.filter(d=>d.area==="Vacant");
+  $("trk-vac-list").innerHTML = vac.length
+    ? vac.map(d=>`<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span class="b b-b">Vacant</span>
+        <div style="flex:1;font-weight:600;font-size:13px">${d.name}</div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer">
+          <input type="checkbox" id="vac-${d.id}"> Visited this week
+        </label></div>`).join("")
+    : `<div style="font-size:12px;color:var(--text2)">No vacant areas</div>`;
+}
+
+function livePct(type,id,tgt) {
+  const v = +$((type==="sec"?"sec-":"pri-")+id)?.value||0;
+  const p = tgt>0?Math.round(v/tgt*100):0;
+  const el = $((type==="sec"?"ss-":"db-")+"pct-"+id);
+  if(el){el.className="b "+pcls(p);el.textContent=p+"%";}
+}
+
+function saveTracker() {
+  const u = STATE.user;
+  const master = MASTER[u.name];
+  if(!master) return;
+  const week = $("trk-week").value.trim() || _autoWeekLabel();
+  const parts = week.split(" ");
+  const month = parts[1] || "Apr";
+
+  if(!STATE.history) STATE.history = {};
+
+  master.ss.forEach(ss=>{
+    const v = +$("sec-"+ss.id)?.value||0;
+    const p = pct(v,ss.secTgt);
+    if(!STATE.history[ss.id]) STATE.history[ss.id]=[];
+    STATE.history[ss.id] = STATE.history[ss.id].filter(h=>h.week!==week);
+    STATE.history[ss.id].push({week,month,secAch:v,secPct:p});
+  });
+  master.dbs.forEach(db=>{
+    const v = +$("pri-"+db.id)?.value||0;
+    const p = pct(v,db.priTgt);
+    if(!STATE.history[db.id]) STATE.history[db.id]=[];
+    STATE.history[db.id] = STATE.history[db.id].filter(h=>h.week!==week);
+    STATE.history[db.id].push({week,month,priAch:v,priPct:p});
+  });
+
+  saveLocalData();
+  STATE.curMonth = month;
+
+  // Queue sync to Google Sheet if online
+  if(navigator.onLine) syncToSheet(week, month, master, u.name);
+  else queueSync(week, month);
+
+  $("trk-msg").textContent = "Saved! " + (navigator.onLine?"Syncing to Sheet...":"Queued — will sync when online.");
+  setTimeout(()=>$("trk-msg").textContent="", 3000);
+  renderHome();
+}
+
+// ── TRENDS ────────────────────────────────────────────────────
+function setTrendView(v,btn) {
+  STATE.trendView=v;
+  document.querySelectorAll("#scr-trends .pill").forEach(p=>{if(p.id==="tv-ss"||p.id==="tv-db")p.classList.remove("active")});
+  btn.classList.add("active");
+  renderTrendList();
+}
+
+function renderTrends() {
+  const u = STATE.user;
+  const hist = STATE.history;
+  const months = [...new Set(
+    Object.values(hist).flat().map(h=>h.month).filter(Boolean)
+  )].filter(m=>MONTHS.includes(m)).sort((a,b)=>MONTHS.indexOf(a)-MONTHS.indexOf(b));
+  if(!months.includes(STATE.curMonth)&&months.length) STATE.curMonth=months[months.length-1];
+
+  $("trend-months").innerHTML = months.map(m=>`
+    <button class="pill ${m===STATE.curMonth?"active":""}" onclick="selectMonth('${m}',this)">${m}</button>`).join("");
+  renderTrendList();
+}
+
+function selectMonth(m,btn) {
+  STATE.curMonth=m;
+  document.querySelectorAll("#trend-months .pill").forEach(p=>p.classList.remove("active"));
+  btn.classList.add("active");
+  renderTrendList();
+}
+
+function renderTrendList() {
+  const u = STATE.user;
+  const master = MASTER[u.role==="manager"?Object.keys(MASTER)[0]:u.name];
+  if(!master) return;
+  const hist = STATE.history;
+  const entities = STATE.trendView==="ss"?master.ss:master.dbs;
+  const idKey = "id";
+
+  $("trend-list").innerHTML = entities.map(ent=>{
+    const allData=(hist[ent.id]||[]);
+    const mData=allData.filter(h=>h.month===STATE.curMonth);
+    const isOpen=STATE.expanded[ent.id];
+
+    const secAvg=mData.length?Math.round(mData.reduce((a,h)=>a+(h.secPct||0),0)/mData.length):0;
+    const priAvg=mData.length?Math.round(mData.reduce((a,h)=>a+(h.priPct||0),0)/mData.length):0;
+    const secVal=mData.reduce((a,h)=>a+(h.secAch||0),0);
+    const priVal=mData.reduce((a,h)=>a+(h.priAch||0),0);
+    const mainPct=STATE.trendView==="ss"?secAvg:priAvg;
+
+    const weekBars=["W1","W2","W3","W4"].map(w=>{
+      const wd=mData.find(h=>h.week.startsWith(w));
+      const p=wd?(STATE.trendView==="ss"?(wd.secPct||0):(wd.priPct||0)):0;
+      return `<div class="sb" style="height:${Math.max(3,p*.28)}px;background:${bcol(p)}"></div>`;
+    }).join("");
+
+    const weekRows=["W1","W2","W3","W4"].map(w=>{
+      const wd=mData.find(h=>h.week.startsWith(w));
+      if(!wd) return `<div class="week-row"><span style="color:var(--text2)">${w} ${STATE.curMonth}</span><span style="color:var(--text3)">No data</span></div>`;
+      const sp=wd.secPct||0; const pp=wd.priPct||0;
+      return `<div class="week-row">
+        <span style="font-weight:600">${w} ${STATE.curMonth}</span>
+        <div style="display:flex;gap:5px;align-items:center">
+          <span class="b ${pcls(sp)}" style="font-size:10px">${sp}% sec</span>
+          <span class="b ${pcls(pp)}" style="font-size:10px">${pp}% pri</span>
+        </div>
+      </div>`;
+    }).join("");
+
+    const avCls=STATE.trendView==="ss"?"av-b":"av-g";
+    return `<div class="ent">
+      <div class="ent-hdr" onclick="toggleEnt('${ent.id}')">
+        <div class="av ${avCls}">${ent.name.slice(0,2).toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ent.name}</div>
+          <div style="font-size:11px;color:var(--text2)">${ent.town||ent.area||""}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="spark">${weekBars}</div>
+          <span class="b ${pcls(mainPct)}">${mainPct}%</span>
+          <span style="font-size:14px;color:var(--text2)">${isOpen?"▾":"▸"}</span>
+        </div>
+      </div>
+      ${isOpen?`<div class="ent-body">
+        <div class="metric-row">
+          <div class="metric-box"><div class="metric-v" style="color:${bcol(secAvg)}">${secAvg}%</div><div class="metric-l">Sec avg</div></div>
+          <div class="metric-box"><div class="metric-v" style="color:${bcol(priAvg)}">${priAvg}%</div><div class="metric-l">Pri avg</div></div>
+          <div class="metric-box"><div class="metric-v">${fmt(STATE.trendView==="ss"?secVal:priVal)}</div><div class="metric-l">₹ total</div></div>
+          <div class="metric-box"><div class="metric-v">${mData.length}</div><div class="metric-l">Weeks</div></div>
+        </div>
+        ${weekRows}
+      </div>`:""}
+    </div>`;
+  }).join("");
+}
+
+function toggleEnt(id) {
+  STATE.expanded[id]=!STATE.expanded[id];
+  renderTrendList();
+}
+
+// ── PJP EXECUTION ─────────────────────────────────────────────
+function renderPJP() {
+  const u = STATE.user;
+  const exec = STATE.pjpExec;
+  const months = Object.keys(exec).sort((a,b)=>MONTHS.indexOf(a)-MONTHS.indexOf(b));
+  if(!months.includes(STATE.curPJPMonth)&&months.length) STATE.curPJPMonth=months[months.length-1];
+
+  $("pjp-months").innerHTML = months.map(m=>`
+    <button class="pill ${m===STATE.curPJPMonth?"active":""}" onclick="selectPJPMonth('${m}',this)">${m}</button>`).join("");
+  renderPJPList();
+}
+
+function selectPJPMonth(m,btn) {
+  STATE.curPJPMonth=m;
+  document.querySelectorAll("#pjp-months .pill").forEach(p=>p.classList.remove("active"));
+  btn.classList.add("active");
+  renderPJPList();
+}
+
+function renderPJPList() {
+  const visits = (STATE.pjpExec[STATE.curPJPMonth]||[]);
+  const done=visits.filter(v=>v.status==="done").length;
+  const missed=visits.filter(v=>v.status==="missed").length;
+  const pending=visits.filter(v=>v.status==="pending").length;
+  const ep=visits.length?Math.round(done/visits.length*100):0;
+
+  $("pjp-exec-bar").innerHTML=`<div class="card">
+    <div style="display:flex;justify-content:space-between;margin-bottom:7px">
+      <span style="font-weight:700;font-size:14px">${STATE.curPJPMonth} execution</span>
+      <span class="b ${pcls(ep)}">${ep}%</span>
+    </div>
+    <div class="pbar" style="height:7px"><div class="pf" style="width:${ep}%;background:${bcol(ep)}"></div></div>
+    <div style="display:flex;gap:12px;margin-top:8px;font-size:12px">
+      <span style="color:var(--green);font-weight:700">${done} done</span>
+      <span style="color:var(--red);font-weight:700">${missed} missed</span>
+      <span style="color:var(--text2)">${pending} upcoming</span>
+    </div>
+  </div>`;
+
+  const byWeek={};
+  visits.forEach(v=>{
+    if(!byWeek[v.week]) byWeek[v.week]=[];
+    byWeek[v.week].push(v);
+  });
+
+  $("pjp-list").innerHTML = Object.entries(byWeek).map(([week,wv])=>`
+    <div class="card" style="margin-bottom:8px">
+      <div class="card-title">${week}
+        <span class="b b-gray">${wv.filter(v=>v.status==="done").length}/${wv.length}</span>
+      </div>
+      ${wv.map((v,i)=>`<div class="vrow" ${i===0?"style='padding-top:0'":""}>
+        <button class="chk ${v.status==="done"?"done":v.status==="missed"?"missed":""}"
+          onclick="cycleStatus('${STATE.curPJPMonth}','${week}',${i})">
+          ${v.status==="done"?"✓":v.status==="missed"?"✗":"○"}
+        </button>
+        <div class="av av-g">${v.db.slice(0,2).toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            ${v.db}${v.mustVisit?` <span class="b b-a" style="font-size:10px">Must visit</span>`:""}
+          </div>
+          <div style="font-size:11px;color:var(--text2)">${v.ss} · ${v.day}</div>
+        </div>
+        <span class="b ${v.score>=70?"b-r":v.score>=40?"b-a":"b-g"}" style="font-size:10px">${v.score}pts</span>
+      </div>`).join("")}
+    </div>`).join("");
+}
+
+function cycleStatus(month,week,idx) {
+  const wv=(STATE.pjpExec[month]||[]).filter(v=>v.week===week);
+  if(!wv[idx]) return;
+  const s=wv[idx].status;
+  wv[idx].status=s==="pending"?"done":s==="done"?"missed":"pending";
+  saveLocalData();
+  renderPJPList();
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────
+function saveSheetId() {
+  const id = $("set-sheet-id").value.trim();
+  if(!id){$("set-conn-status").textContent="Enter a valid Sheet ID";return;}
+  STATE.sheetId=id;
+  localStorage.setItem("sheetId",id);
+  $("set-conn-status").textContent="Saved! Will use this Sheet for sync.";
+  setTimeout(()=>$("set-conn-status").textContent="",3000);
+}
+
+// ── GOOGLE SHEETS SYNC ────────────────────────────────────────
+async function syncToSheet(week, month, master, rsmName) {
+  const sheetId = STATE.sheetId;
+  if(!sheetId || sheetId==="YOUR_SHEET_ID_HERE") return;
+
+  try {
+    const values = [];
+    master.ss.forEach((ss,i)=>{
+      const db = master.dbs[i]||master.dbs[0];
+      const sh = STATE.history[ss.id]||[];
+      const dh = STATE.history[db.id]||[];
+      const sw = sh.find(h=>h.week===week);
+      const dw = dh.find(h=>h.week===week);
+      if(sw||dw) values.push([
+        rsmName, week, month,
+        ss.name, ss.town, db.name, db.area,
+        ss.secTgt, sw?.secAch||0, (sw?.secPct||0)/100,
+        db.priTgt, dw?.priAch||0, (dw?.priPct||0)/100,
+        0, ""
+      ]);
+    });
+
+    if(!values.length) return;
+    const token = await getGoogleToken();
+    if(!token) return;
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/5_History!A:P:append?valueInputOption=USER_ENTERED`;
+    await fetch(url,{
+      method:"POST",
+      headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+      body:JSON.stringify({values})
+    });
+    $("sync-status").textContent = "Synced to Sheet ✓";
+    setTimeout(()=>$("sync-status").textContent="",3000);
+  } catch(e) {
+    console.log("Sync error:",e);
+    queueSync(week, month);
+  }
+}
+
+async function getGoogleToken() {
+  // Uses Google Identity Services for token
+  return new Promise(resolve=>{
+    if(window.google?.accounts?.oauth2) {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+        scope: "https://www.googleapis.com/auth/spreadsheets",
+        callback: resp => resolve(resp.access_token)
+      });
+      client.requestAccessToken({prompt:""});
+    } else {
+      resolve(null);
+    }
+  });
+}
+
+function queueSync(week, month) {
+  const queue = JSON.parse(localStorage.getItem("syncQueue")||"[]");
+  queue.push({week,month,rsmName:STATE.user.name,ts:Date.now()});
+  localStorage.setItem("syncQueue",JSON.stringify(queue));
+}
+
+// ── OFFLINE ───────────────────────────────────────────────────
+window.addEventListener("online",()=>{
+  $("offline-banner").classList.remove("show");
+  $("sync-status").textContent="Back online — syncing...";
+  const queue=JSON.parse(localStorage.getItem("syncQueue")||"[]");
+  queue.forEach(q=>{
+    const master=MASTER[q.rsmName];
+    if(master) syncToSheet(q.week,q.month,master,q.rsmName);
+  });
+  localStorage.removeItem("syncQueue");
+  setTimeout(()=>$("sync-status").textContent="",4000);
+});
+window.addEventListener("offline",()=>{
+  $("offline-banner").classList.add("show");
+});
+
+// ── SERVICE WORKER REGISTRATION ───────────────────────────────
+if("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").then(()=>{
+    console.log("SW registered");
+  }).catch(e=>console.log("SW error:",e));
+}
+
+// ── AUTO LOGIN from localStorage ──────────────────────────────
+window.addEventListener("DOMContentLoaded",()=>{
+  const saved = localStorage.getItem("lastUser");
+  if(saved) {
+    try {
+      STATE.user = JSON.parse(saved);
+      loadLocalData();
+      startApp();
+    } catch(e) { localStorage.removeItem("lastUser"); }
+  }
+});
+</script>
+</body>
+</html>
