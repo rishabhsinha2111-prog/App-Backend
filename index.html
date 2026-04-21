@@ -335,28 +335,28 @@ const USERS = {
 const MASTER = {
   "rajesh upadhyay": {
     ss: [
-      {id:"ss_raj_1",name:"NEW MANGAL SALES, DATTA NAGAR",town:"DATTA NAGAR",secTgt:100000},
-      {id:"ss_raj_2",name:"TEAM 4 LOGISTICS",town:"TEAM 4 LOGISTICS",secTgt:100000},
-      {id:"ss_raj_3",name:"SALMA FOODS & BEVERAGES",town:"SALMA FOODS & BEVERAGES",secTgt:100000},
-      {id:"ss_raj_4",name:"SHIV SAI TRADING LONI",town:"SHIV SAI TRADING LONI",secTgt:100000},
-      {id:"ss_raj_5",name:"JAY MATA DI RETAIL",town:"JAY MATA DI RETAIL",secTgt:100000},
+      {id:"ss_raj_1",name:"NEW MANGAL SALES, DATTA NAGAR",town:"DATTA NAGAR",secTgt:0},
+      {id:"ss_raj_2",name:"TEAM 4 LOGISTICS",town:"TEAM 4 LOGISTICS",secTgt:0},
+      {id:"ss_raj_3",name:"SALMA FOODS & BEVERAGES",town:"SALMA FOODS & BEVERAGES",secTgt:0},
+      {id:"ss_raj_4",name:"SHIV SAI TRADING LONI",town:"SHIV SAI TRADING LONI",secTgt:0},
+      {id:"ss_raj_5",name:"JAY MATA DI RETAIL",town:"JAY MATA DI RETAIL",secTgt:0},
     ],
     dbs: [
-      {id:"db_raj_1",name:"ADESH MARKETING",ssId:"ss_raj_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_2",name:"ABASAHEB CHAUDHARY & SONS",ssId:"ss_raj_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_3",name:"BALAJI TRADING CO. PETH",ssId:"ss_raj_3",priTgt:200000,area:"Active",mustVisit:false},
+      {id:"db_raj_1",name:"ADESH MARKETING",ssId:"ss_raj_1",priTgt:1800000,area:"Active",mustVisit:false},
+      {id:"db_raj_2",name:"ABASAHEB CHAUDHARY & SONS",ssId:"ss_raj_2",priTgt:1400000,area:"Active",mustVisit:false},
+      {id:"db_raj_3",name:"BALAJI TRADING CO. PETH",ssId:"ss_raj_3",priTgt:1500000,area:"Active",mustVisit:false},
       {id:"db_raj_4",name:"SHRADDHA MARKETING",ssId:"ss_raj_4",priTgt:200000,area:"Active",mustVisit:false},
       {id:"db_raj_5",name:"AAYUSH ENTERPRISES,PUNE",ssId:"ss_raj_5",priTgt:200000,area:"Active",mustVisit:false},
       {id:"db_raj_6",name:"S K ENTERPRISES,YD",ssId:"ss_raj_1",priTgt:200000,area:"Active",mustVisit:false},
       {id:"db_raj_7",name:"SHRI BHIMASHANKAR ENTERPRISES",ssId:"ss_raj_2",priTgt:200000,area:"Active",mustVisit:false},
       {id:"db_raj_8",name:"MAHALAXMI DISTRIBUTORS,YD",ssId:"ss_raj_3",priTgt:200000,area:"Active",mustVisit:false},
       {id:"db_raj_9",name:"SRUSHTI AGENCY",ssId:"ss_raj_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_10",name:"LAXMI TRADERS,HADAPSAR",ssId:"ss_raj_5",priTgt:200000,area:"Active",mustVisit:false},
+      {id:"db_raj_10",name:"LAXMI TRADERS,HADAPSAR",ssId:"ss_raj_5",priTgt:500000,area:"Active",mustVisit:false},
       {id:"db_raj_11",name:"POONAM ENTERPRISES- STATION",ssId:"ss_raj_1",priTgt:200000,area:"Active",mustVisit:false},
       {id:"db_raj_12",name:"S P ENTERPRISES,HADAPSAR",ssId:"ss_raj_2",priTgt:200000,area:"Active",mustVisit:false},
       {id:"db_raj_13",name:"Mahalaxmi Agencies,Sinhgad Road",ssId:"ss_raj_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_14",name:"Anandratna Sales,Wagholi",ssId:"ss_raj_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_15",name:"ANAYA TRADERS",ssId:"ss_raj_5",priTgt:200000,area:"Active",mustVisit:false},
+      {id:"db_raj_14",name:"Anandratna Sales,Wagholi",ssId:"ss_raj_4",priTgt:600000,area:"Active",mustVisit:false},
+      {id:"db_raj_15",name:"ANAYA TRADERS",ssId:"ss_raj_5",priTgt:250000,area:"Active",mustVisit:false},
       {id:"db_raj_16",name:"MANE ENTERPRISES,BHOR",ssId:"ss_raj_1",priTgt:200000,area:"Active",mustVisit:false},
       {id:"db_raj_17",name:"AARYA DISTRIBUTORS,SHIRUR",ssId:"ss_raj_2",priTgt:200000,area:"Active",mustVisit:false},
       {id:"db_raj_18",name:"Vimal Trading Co. Bhandgaon",ssId:"ss_raj_3",priTgt:200000,area:"Active",mustVisit:false},
@@ -586,9 +586,15 @@ function startApp() {
   $("set-zone").textContent = u.zone;
   $("set-sheet-id").value = STATE.sheetId;
 
-  if (u.role === "manager") {
+  /*if (u.role === "manager") {
     $("mgr-section").style.display = "block";
-  }
+  }*/
+  
+  if (u.role === "manager") {
+  $("mgr-section").style.display = "block";
+} else {
+  $("mgr-section").style.display = "none";
+}
 
   renderHome();
   renderTracker();
