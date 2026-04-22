@@ -410,13 +410,24 @@ function doLogin() {
   startApp();
 }
 
-function doLogout() {
+/*function doLogout() {
   STATE.user = null;
   $("main-app").style.display = "none";
   $("login-screen").style.display = "flex";
   $("login-pin").value = "";
   $("login-err").textContent = "";
-}
+}*/
+function doLogout() {
+  STATE.user = null;
+  localStorage.removeItem("lastUser");
+  localStorage.removeItem("gtoken");
+  localStorage.removeItem("gtoken_ts");
+  $("main-app").style.display = "none";
+  $("login-screen").style.display = "flex";
+  $("login-name").value = "";
+  $("login-pin").value = "";
+  $("login-err").textContent = "";
+}  
 
 function startApp() {
   $("login-screen").style.display = "none";
@@ -1294,7 +1305,25 @@ function queueSync(week, month) {
 }
 
 // ── OFFLINE ───────────────────────────────────────────────────
-window.addEventListener("online",()=>{
+window.addEventListener("DOMContentLoaded",()=>{
+  const saved = localStorage.getItem("lastUser");
+  if(saved) {
+    try {
+      STATE.user = JSON.parse(saved);
+      loadLocalData();
+      startApp();
+    } catch(e) {
+      localStorage.removeItem("lastUser");
+    }
+  }
+  // Force login screen refresh to show updated branding
+  const loginLogo = document.querySelector(".login-logo");
+  if(loginLogo) loginLogo.innerHTML = 'RMC<span>Pulse</span>';
+  const loginSub = document.querySelector(".login-sub");
+  if(loginSub) loginSub.textContent = "Providing Stability to Sales";
+});
+  
+/*window.addEventListener("online",()=>{
   $("offline-banner").classList.remove("show");
   $("sync-status").textContent="Back online — syncing...";
   const queue=JSON.parse(localStorage.getItem("syncQueue")||"[]");
@@ -1307,7 +1336,7 @@ window.addEventListener("online",()=>{
 });
 window.addEventListener("offline",()=>{
   $("offline-banner").classList.add("show");
-});
+});*/
 
 // ── SERVICE WORKER REGISTRATION ───────────────────────────────
 if("serviceWorker" in navigator) {
