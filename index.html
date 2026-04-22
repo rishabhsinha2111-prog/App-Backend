@@ -1274,9 +1274,6 @@ async function loadHistoryFromSheet() {
     }
 
     if(!rows.length){ $("sync-status").textContent="No data found in 5_History sheet"; return; }
-    const json = await res.json();
-    const rows = json.values||[];
-    if(!rows.length){ $("sync-status").textContent=""; return; }
 
     const rsmName = STATE.user.name;
     const master = MASTER[rsmName];
