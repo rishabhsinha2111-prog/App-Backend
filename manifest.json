@@ -23,16 +23,13 @@
     {
       "src": "icons/apple-touch-icon.png",
       "sizes": "180x180",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     }
-  ]
-},
+  ],
   "categories": ["business", "productivity"],
-  "screenshots": [],
   "shortcuts": [
     {
-      "name": "Enter this week's data",
+      "name": "Enter weekly data",
       "url": "/?screen=tracker",
       "description": "Open weekly tracker"
     },
