@@ -165,8 +165,26 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
 /* ── SPARK ── */
 .spark{display:flex;align-items:flex-end;gap:2px;height:28px}
 .sb{flex:1;border-radius:2px 2px 0 0;min-width:7px}
+
+/* ── TREND MODE BUTTONS ── */
+.trend-mode-btn{flex:1;padding:7px;font-size:12px;font-weight:700;border:none;border-radius:6px;cursor:pointer;font-family:var(--f);background:transparent;color:var(--text2)}
+.trend-mode-btn.active{background:var(--brand);color:#fff}
+
+/* ── COMPARISON BARS ── */
+.cmp-row{margin-bottom:10px}
+.cmp-bar-row{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.cmp-yr{font-size:10px;width:24px;color:var(--text2);flex-shrink:0;font-weight:600}
+.cmp-bar-wrap{flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden}
+.cmp-bar-fill{height:100%;border-radius:4px}
+.cmp-val{font-size:10px;font-weight:700;width:28px;text-align:right;flex-shrink:0}
+
+/* ── WEEK BARS ── */
+.week-bar-wrap{display:flex;align-items:flex-end;gap:5px;height:64px;margin-bottom:6px}
+.week-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.week-bar-pct{font-size:9px;font-weight:700}
+.week-bar{width:100%;border-radius:3px 3px 0 0}
+.week-bar-lbl{font-size:9px;color:var(--text2)}
 </style>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -244,13 +262,19 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
 
       <!-- TRENDS -->
       <div id="scr-trends" class="scr">
-        <div style="display:flex;gap:6px;margin-bottom:12px">
-          <button class="pill active" id="tv-ss" onclick="setTrendView('ss',this)">SS-wise</button>
-          <button class="pill" id="tv-db" onclick="setTrendView('db',this)">DB-wise</button>
+        <!-- Entity toggle -->
+        <div style="display:flex;gap:4px;margin-top:4px;margin-bottom:8px;background:var(--bg);border-radius:8px;padding:3px;border:1px solid var(--border)">
+          <button id="ent-db" style="flex:1;padding:7px;font-size:12px;font-weight:700;border:none;border-radius:6px;cursor:pointer;font-family:var(--f);background:var(--brand);color:#fff" onclick="setEntView('db',this)">DB-wise</button>
+          <button id="ent-ss" style="flex:1;padding:7px;font-size:12px;font-weight:700;border:none;border-radius:6px;cursor:pointer;font-family:var(--f);background:transparent;color:var(--text2)" onclick="setEntView('ss',this)">SS-wise</button>
         </div>
-        <div class="slbl" style="margin-top:0">Month</div>
-        <div class="pill-row" id="trend-months"></div>
-        <div id="trend-list"></div>
+        <!-- View mode toggle -->
+        <div style="display:flex;gap:4px;margin-bottom:10px;background:var(--bg);border-radius:8px;padding:3px;border:1px solid var(--border)">
+          <button class="trend-mode-btn active" data-mode="monthly" onclick="setTrendMode('monthly',this)">Monthly</button>
+          <button class="trend-mode-btn" data-mode="l3m" onclick="setTrendMode('l3m',this)">L3M</button>
+          <button class="trend-mode-btn" data-mode="weekly" onclick="setTrendMode('weekly',this)">This month</button>
+        </div>
+        <!-- Dynamic content -->
+        <div id="trend-content"></div>
       </div>
 
       <!-- PJP -->
@@ -313,216 +337,38 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
 
 <script>
 // ── CONFIG — replace with your actual Sheet ID ────────────────
-const DEFAULT_SHEET_ID = "1fbBgWcvlmoIJJnASkOOm_tK318ILgIJq4BLGQ9CtBzk";
+const DEFAULT_SHEET_ID = "YOUR_SHEET_ID_HERE";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DAYS   = ["Mon","Tue","Wed","Thu","Fri","Sat"];
 
-// ── USER STORE ───────────────────────────────────────────────
+// ── USER STORE ────────────────────────────────────────────────
 const USERS = {
-  "rajesh upadhyay": {zone:"Pune", pin:"1234", role:"rsm"},
-  "shivaji tamgale": {zone:"Pune Rural", pin:"1234", role:"rsm"},
-  "sambhaji jadhav": {zone:"Satara", pin:"1234", role:"rsm"},
-  "rahul chougule": {zone:"Kolhapur", pin:"1234", role:"rsm"},
-  "nandkumar shirgave": {zone:"Sangli / Solapur / Konkan", pin:"1234", role:"rsm"},
-  "chandpasha pathan": {zone:"Marathwada", pin:"1234", role:"rsm"},
-  "vijay wagh": {zone:"Ahmednagar", pin:"1234", role:"rsm"},
-  "syd. waseemuddin": {zone:"Aurangabad", pin:"1234", role:"rsm"},
-  "naresh lade": {zone:"Jalna", pin:"1234", role:"rsm"},
-  "rishabh sinha":   {zone:"All zones", pin:"9999", role:"manager"}
+  "arjun sharma":  {zone:"Pune West",  pin:"1234", role:"rsm"},
+  "meena patil":   {zone:"Pune East",  pin:"1234", role:"rsm"},
+  "rahul nair":    {zone:"Nashik",     pin:"1234", role:"rsm"},
+  "manager":       {zone:"All zones",  pin:"9999", role:"manager"}
 };
 
-// ── MASTER DATA ──────────────────────────────────────────────
+// ── MASTER DATA (mirrors your Google Sheet) ───────────────────
 const MASTER = {
-  "rajesh upadhyay": {
-    ss: [
-      {id:"ss_raj_1",name:"NEW MANGAL SALES, DATTA NAGAR",town:"DATTA NAGAR",secTgt:0},
-      {id:"ss_raj_2",name:"TEAM 4 LOGISTICS",town:"TEAM 4 LOGISTICS",secTgt:0},
-      {id:"ss_raj_3",name:"SALMA FOODS & BEVERAGES",town:"SALMA FOODS & BEVERAGES",secTgt:0},
-      {id:"ss_raj_4",name:"SHIV SAI TRADING LONI",town:"SHIV SAI TRADING LONI",secTgt:0},
-      {id:"ss_raj_5",name:"JAY MATA DI RETAIL",town:"JAY MATA DI RETAIL",secTgt:0},
-    ],
-    dbs: [
-      {id:"db_raj_1",name:"ADESH MARKETING",ssId:"ss_raj_1",priTgt:1800000,area:"Active",mustVisit:false},
-      {id:"db_raj_2",name:"ABASAHEB CHAUDHARY & SONS",ssId:"ss_raj_2",priTgt:1400000,area:"Active",mustVisit:false},
-      {id:"db_raj_3",name:"BALAJI TRADING CO. PETH",ssId:"ss_raj_3",priTgt:1500000,area:"Active",mustVisit:false},
-      {id:"db_raj_4",name:"SHRADDHA MARKETING",ssId:"ss_raj_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_5",name:"AAYUSH ENTERPRISES,PUNE",ssId:"ss_raj_5",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_6",name:"S K ENTERPRISES,YD",ssId:"ss_raj_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_7",name:"SHRI BHIMASHANKAR ENTERPRISES",ssId:"ss_raj_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_8",name:"MAHALAXMI DISTRIBUTORS,YD",ssId:"ss_raj_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_9",name:"SRUSHTI AGENCY",ssId:"ss_raj_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_10",name:"LAXMI TRADERS,HADAPSAR",ssId:"ss_raj_5",priTgt:500000,area:"Active",mustVisit:false},
-      {id:"db_raj_11",name:"POONAM ENTERPRISES- STATION",ssId:"ss_raj_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_12",name:"S P ENTERPRISES,HADAPSAR",ssId:"ss_raj_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_13",name:"Mahalaxmi Agencies,Sinhgad Road",ssId:"ss_raj_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_14",name:"Anandratna Sales,Wagholi",ssId:"ss_raj_4",priTgt:600000,area:"Active",mustVisit:false},
-      {id:"db_raj_15",name:"ANAYA TRADERS",ssId:"ss_raj_5",priTgt:250000,area:"Active",mustVisit:false},
-      {id:"db_raj_16",name:"MANE ENTERPRISES,BHOR",ssId:"ss_raj_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_17",name:"AARYA DISTRIBUTORS,SHIRUR",ssId:"ss_raj_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_18",name:"Vimal Trading Co. Bhandgaon",ssId:"ss_raj_3",priTgt:200000,area:"Active",mustVisit:false},
-    ]
+  "arjun sharma": {
+    ss:[{id:"s1",name:"Ravi Sales Co.",town:"Kothrud",secTgt:150000},
+        {id:"s2",name:"Om Agencies",town:"Deccan",secTgt:120000}],
+    dbs:[{id:"d1",name:"Kohinoor Dist.",ssId:"s1",priTgt:400000,area:"Active",mustVisit:false},
+         {id:"d2",name:"Sunrise Dist.",ssId:"s2",priTgt:300000,area:"Vacant",mustVisit:true}]
   },
-  "shivaji tamgale": {
-    ss: [],
-    dbs: [
-      {id:"db_shi_1",name:"Pandurang Agency",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_2",name:"Vishal Enterprises",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_3",name:"GANESH AGENCY",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_4",name:"Naaz Agency",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_5",name:"Pooja Agency (Dehu Road)",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_6",name:"SHREE GANESH AGENCY - ALANDI",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_7",name:"PRATAP ENTERPRISES",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_8",name:"Hasmukh Traders (Kamshet)",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_9",name:"SHUBHAM FOODS,LONAVALA",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_10",name:"MTS FOOD PRODUCTS",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_11",name:"JAY GANESH AGENCY - CHAKAN",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_12",name:"AMIT LUNAVAT",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_13",name:"Sairam agency,Manchar",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_14",name:"DEVA ENTERPRISES",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_shi_15",name:"Sayli Agency,Narayangaon",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-    ]
+  "meena patil": {
+    ss:[{id:"s3",name:"Metro Traders",town:"Hadapsar",secTgt:180000},
+        {id:"s4",name:"Pooja Enterp.",town:"Wanowrie",secTgt:90000}],
+    dbs:[{id:"d3",name:"Allied Corp",ssId:"s3",priTgt:500000,area:"Active",mustVisit:true},
+         {id:"d4",name:"City Dist.",ssId:"s4",priTgt:250000,area:"Active",mustVisit:false}]
   },
-  "sambhaji jadhav": {
-    ss: [
-      {id:"ss_sam_1",name:"SHRADDHA AGENCY, SATARA CITY",town:"SATARA CITY",secTgt:100000},
-      {id:"ss_sam_2",name:"Kavikesh Enterprises, LONAND",town:"LONAND",secTgt:100000},
-      {id:"ss_sam_3",name:"VISHNAVI AGENCIES, SHREEGONDA",town:"SHREEGONDA",secTgt:100000},
-    ],
-    dbs: [
-      {id:"db_sam_1",name:"SP AGENCIES, SATARA CITY",ssId:"ss_sam_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_sam_2",name:"GANESH AGENCY, RAHMETPUR",ssId:"ss_sam_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_sam_3",name:"SAGAR TRADING CO, VADOOJ + DAHIWADI",ssId:"ss_sam_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_sam_4",name:"SANDEEP AGENCY, MEDHA",ssId:"ss_sam_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_sam_5",name:"SHREE AGENCY, W STATION",ssId:"ss_sam_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_sam_6",name:"SAI AGENCY, UMBRAJ",ssId:"ss_sam_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_sam_7",name:"PRASHANT GEN STORES , KATAV",ssId:"ss_sam_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_sam_8",name:"NISHA SALES ,WAI city & Interior",ssId:"ss_sam_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_sam_9",name:"JAY BHAVANI , SHIRWAL",ssId:"ss_sam_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_sam_10",name:"PUNEKAR AG.VITA",ssId:"ss_sam_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_sam_11",name:"KANAK AGENCY",ssId:"ss_sam_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_sam_12",name:"VIJAY PAN SHOP, RASHIN ( KARJAT)",ssId:"ss_sam_3",priTgt:200000,area:"Active",mustVisit:false},
-    ]
-  },
-  "rahul chougule": {
-    ss: [
-      {id:"ss_rah_1",name:"AMBIKA AGENCY, KOLHAPUR",town:"KOLHAPUR",secTgt:100000},
-      {id:"ss_rah_2",name:"New Sharada Store (Self WH)",town:"New Sharada Store",secTgt:100000},
-      {id:"ss_rah_3",name:"NEW SAMARTH AGENCY (SELF WH)",town:"NEW SAMARTH AGENCY",secTgt:100000},
-      {id:"ss_rah_4",name:"VANEET AGE, GARGOTI (Self)",town:"GARGOTI (Self)",secTgt:100000},
-    ],
-    dbs: [
-      {id:"db_rah_1",name:"SANDEEP AGENCY",ssId:"ss_rah_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_2",name:"GURUKRUPA AGENCY, KOP CITY",ssId:"ss_rah_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_3",name:"PATIL & SONS, KOP CITY",ssId:"ss_rah_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_4",name:"SAI GAJANAN AG., KOP CITY",ssId:"ss_rah_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_5",name:"MAULI AGENCY, PANHALA",ssId:"ss_rah_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_6",name:"PADAMAWATI AGENCY, Rukadi",ssId:"ss_rah_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_7",name:"NAV BHARAT AGENCY, Shirol",ssId:"ss_rah_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_8",name:"M.G.AGENCY, Jaysinghpur",ssId:"ss_rah_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_9",name:"SAAD AGENCY, Savarde",ssId:"ss_rah_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_10",name:"GANESH AGENCY, P VADGAON",ssId:"ss_rah_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_11",name:"OMKAR AGENCY, PARGOV",ssId:"ss_rah_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_12",name:"RAVALANATHA AGENCY( AJARA IDC)",ssId:"ss_rah_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_13",name:"VAIBHAV AGENCY, CHANDGADH",ssId:"ss_rah_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_14",name:"SHIVANANAD AGENCY, GADHINGLAJ",ssId:"ss_rah_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_rah_15",name:"KUMBHAR AGENCY, RADHANAGARI",ssId:"ss_rah_3",priTgt:200000,area:"Active",mustVisit:false},
-    ]
-  },
-  "nandkumar shirgave": {
-    ss: [
-      {id:"ss_nan_1",name:"SIDDANATH ENTERPRISES, Islampur (DB)",town:"Islampur (DB)",secTgt:100000},
-      {id:"ss_nan_2",name:"SHRI SAI PHONDAGHAT WHOLESALE",town:"SHRI SAI PHONDAGHAT WHOLESALE",secTgt:100000},
-      {id:"ss_nan_3",name:"Kartick Agency",town:"Kartick Agency",secTgt:100000},
-      {id:"ss_nan_4",name:"TAMBOLI AGENCY, SOLAPUR",town:"SOLAPUR",secTgt:100000},
-      {id:"ss_nan_5",name:"KAIF TRADERS, AKKALKOT",town:"AKKALKOT",secTgt:100000},
-    ],
-    dbs: [
-      {id:"db_nan_1",name:"Diamond Agency, Miraj",ssId:"ss_nan_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_2",name:"R. K. Agencies, Miraj Interior",ssId:"ss_nan_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_3",name:"Sri Sri Agency, Sangali",ssId:"ss_nan_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_4",name:"VS ENTERPRISES",ssId:"ss_nan_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_5",name:"Yash Agency, Sangali Interior",ssId:"ss_nan_5",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_6",name:"BALAJI, Tasgaon",ssId:"ss_nan_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_7",name:"AVINASH AGENCY(Siddhali) , Jat",ssId:"ss_nan_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_8",name:"Choudhary Agency, Kavthe Mahankal",ssId:"ss_nan_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_9",name:"Choudhary Agency, SHIRALA",ssId:"ss_nan_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_10",name:"PATIL TRADERS,ASHTA",ssId:"ss_nan_5",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_11",name:"SHAH AGENCIES, PALUS",ssId:"ss_nan_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_12",name:"Sachin Agency, Kankawali",ssId:"ss_nan_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_13",name:"L. R. Joshi, Devgadh",ssId:"ss_nan_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_14",name:"Mangavkar Agency",ssId:"ss_nan_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_15",name:"RAJALAXMI TRADERS, VENGURLA",ssId:"ss_nan_5",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_16",name:"Mahesh Agency, Kudal",ssId:"ss_nan_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_17",name:"Masurkar Agency, Kudal Interior",ssId:"ss_nan_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_18",name:"SWAMI SAMARTH AGENCY",ssId:"ss_nan_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_19",name:"MAULI AGENCY",ssId:"ss_nan_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_20",name:"YASH (Parab) Agency, Malvan",ssId:"ss_nan_5",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_21",name:"Shri Dattaguru Enterprises",ssId:"ss_nan_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nan_22",name:"Siddhi Agencies",ssId:"ss_nan_2",priTgt:200000,area:"Active",mustVisit:false},
-    ]
-  },
-  "chandpasha pathan": {
-    ss: [
-      {id:"ss_cha_1",name:"Vijay Sales Agencies",town:"Vijay Sales Agencies",secTgt:100000},
-      {id:"ss_cha_2",name:"Lalit Agency, Udgir",town:"Udgir",secTgt:100000},
-      {id:"ss_cha_3",name:"Kumarswami Agencies, Satala + Interior",town:"Satala + Interior",secTgt:100000},
-      {id:"ss_cha_4",name:"Tapadia Agency, Ausa",town:"Ausa",secTgt:100000},
-      {id:"ss_cha_5",name:"Samruddhi Agency, Ahmedpur",town:"Ahmedpur",secTgt:100000},
-      {id:"ss_cha_6",name:"Arnav Agency, Renapur",town:"Renapur",secTgt:100000},
-      {id:"ss_cha_7",name:"FAMOUS CONFECTIONARY",town:"FAMOUS CONFECTIONARY",secTgt:100000},
-      {id:"ss_cha_8",name:"Good Choice Enterprises, Beed",town:"Beed",secTgt:100000},
-      {id:"ss_cha_9",name:"R R AGENCIES, PARALI",town:"PARALI",secTgt:100000},
-      {id:"ss_cha_10",name:"Baheti Trading, Ambejogai",town:"Ambejogai",secTgt:100000},
-      {id:"ss_cha_11",name:"J. M. Agency, Majalgaon",town:"Majalgaon",secTgt:100000},
-      {id:"ss_cha_12",name:"New Nayyum Kirana, Keij",town:"Keij",secTgt:100000},
-      {id:"ss_cha_13",name:"Sharad Traders, Omerga",town:"Omerga",secTgt:100000},
-      {id:"ss_cha_14",name:"Gajanan Agency, Kallamb",town:"Kallamb",secTgt:100000},
-    ],
-    dbs: [
-      {id:"db_cha_1",name:"Kwality Bakery, Nilanga",ssId:"ss_cha_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_cha_2",name:"Sukhakarta Agency, Osmanabad",ssId:"ss_cha_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_cha_3",name:"B. R. Enterprises, Tuljapur",ssId:"ss_cha_3",priTgt:200000,area:"Active",mustVisit:false},
-    ]
-  },
-  "vijay wagh": {
-    ss: [
-      {id:"ss_vij_1",name:"S. R. Provision, Rahuri City",town:"Rahuri City",secTgt:100000},
-    ],
-    dbs: [
-      {id:"db_vij_1",name:"Shrimal Agency",ssId:"ss_vij_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_vij_2",name:"ADVIKA ENTERPRISES, SHRIRAMPUR CITY",ssId:"ss_vij_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_vij_3",name:"Sariya Agency, Shevgaon",ssId:"ss_vij_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_vij_4",name:"Dalvi Agency, Supa",ssId:"ss_vij_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_vij_5",name:"Balaji Farsan, Rahata",ssId:"ss_vij_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_vij_6",name:"Sai Dwarka Agency, Shirdi",ssId:"ss_vij_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_vij_7",name:"SHRI SAI AGENCY, BABHLESHWAR",ssId:"ss_vij_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_vij_8",name:"Aarsh Agency, Akole",ssId:"ss_vij_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_vij_9",name:"Pravara Provision, Bhadardara",ssId:"ss_vij_1",priTgt:200000,area:"Active",mustVisit:false},
-    ]
-  },
-  "syd. waseemuddin": {
-    ss: [
-      {id:"ss_syd_1",name:"Mirza Agency, Kagazipura",town:"Kagazipura",secTgt:100000},
-    ],
-    dbs: [
-      {id:"db_syd_1",name:"VISHAL AGENCY, Walunj",ssId:"ss_syd_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_syd_2",name:"Balaji Goli Buiscuit, Lasur WH",ssId:"ss_syd_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_syd_3",name:"Sagar Agency, Paithan",ssId:"ss_syd_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_syd_4",name:"Shah Agency, Bidkin",ssId:"ss_syd_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_syd_5",name:"MAHARASTRA ANDA CENTRE, KANNAD",ssId:"ss_syd_1",priTgt:200000,area:"Active",mustVisit:false},
-    ]
-  },
-  "naresh lade": {
-    ss: [],
-    dbs: [
-      {id:"db_nar_1",name:"Ambar Traders Mantha",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nar_2",name:"GUNJAN TREDERS",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nar_3",name:"Darshna Treders Ambad",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nar_4",name:"Ganpati Treders",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_nar_5",name:"Shree Samarth Agency",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false},
-    ]
-  },
-  "rishabh sinha": {ss:[], dbs:[]}
+  "rahul nair": {
+    ss:[{id:"s5",name:"Nashik Depot",town:"Nashik Rd",secTgt:200000},
+        {id:"s6",name:"Green Traders",town:"Ozar",secTgt:110000}],
+    dbs:[{id:"d5",name:"Nashik Dist.",ssId:"s5",priTgt:600000,area:"Active",mustVisit:true},
+         {id:"d6",name:"Ozar Agencies",ssId:"s6",priTgt:200000,area:"Vacant",mustVisit:false}]
+  }
 };
 
 // ── APP STATE ─────────────────────────────────────────────────
@@ -586,20 +432,17 @@ function startApp() {
   $("set-zone").textContent = u.zone;
   $("set-sheet-id").value = STATE.sheetId;
 
-  /*if (u.role === "manager") {
-    $("mgr-section").style.display = "block";
-  }*/
-  
   if (u.role === "manager") {
-  $("mgr-section").style.display = "block";
-} else {
-  $("mgr-section").style.display = "none";
-}
+    $("mgr-section").style.display = "block";
+  } else {
+    $("mgr-section").style.display = "none";
+  }
 
   renderHome();
   renderTracker();
   renderTrends();
   renderPJP();
+  if(navigator.onLine) loadHistoryFromSheet();
 }
 
 // ── LOCAL DATA ────────────────────────────────────────────────
@@ -622,34 +465,41 @@ function saveLocalData() {
 function _seedHistory() {
   const name = STATE.user.name;
   const master = MASTER[name];
-  if (!master) return {};
+  if(!master) return {};
   const hist = {};
-  const months = ["Jan","Feb","Mar","Apr"];
-  const weeks  = ["W1","W2","W3","W4"];
-  master.ss.forEach(ss => {
-    hist[ss.id] = [];
-    months.forEach(m => {
-      weeks.forEach(w => {
-        const base = Math.random()*40+40;
-        hist[ss.id].push({
-          week:`${w} ${m}`, month:m,
-          secAch:Math.round(ss.secTgt*(base/100)),
-          secPct:Math.round(base)
-        });
-      });
+  const fyMonths = [
+    {month:"Apr",fy:"FY2024-25"},{month:"May",fy:"FY2024-25"},
+    {month:"Jun",fy:"FY2024-25"},{month:"Jul",fy:"FY2024-25"},
+    {month:"Aug",fy:"FY2024-25"},{month:"Sep",fy:"FY2024-25"},
+    {month:"Oct",fy:"FY2024-25"},{month:"Nov",fy:"FY2024-25"},
+    {month:"Dec",fy:"FY2024-25"},{month:"Jan",fy:"FY2024-25"},
+    {month:"Feb",fy:"FY2024-25"},{month:"Mar",fy:"FY2024-25"},
+    {month:"Apr",fy:"FY2025-26"},{month:"May",fy:"FY2025-26"},
+    {month:"Jun",fy:"FY2025-26"},{month:"Jul",fy:"FY2025-26"},
+    {month:"Aug",fy:"FY2025-26"},{month:"Sep",fy:"FY2025-26"},
+    {month:"Oct",fy:"FY2025-26"},{month:"Nov",fy:"FY2025-26"},
+    {month:"Dec",fy:"FY2025-26"},{month:"Jan",fy:"FY2025-26"},
+    {month:"Feb",fy:"FY2025-26"},{month:"Mar",fy:"FY2025-26"},
+  ];
+  const now = new Date();
+  const curMonth = MONTHS[now.getMonth()];
+  const curYear = now.getFullYear();
+  const curFY = curMonth==="Jan"||curMonth==="Feb"||curMonth==="Mar"
+    ? `FY${curYear-1}-${String(curYear).slice(2)}`
+    : `FY${curYear}-${String(curYear+1).slice(2)}`;
+  const curWeekNum = Math.ceil(now.getDate()/7);
+  const allEntities = [...(master.ss||[]), ...(master.dbs||[])];
+  allEntities.forEach(ent=>{
+    hist[ent.id] = [];
+    const tgt = ent.secTgt||ent.priTgt||200000;
+    fyMonths.forEach(({month,fy})=>{
+      const base = 45+Math.random()*45;
+      hist[ent.id].push({weekLabel:"Monthly",month,fy,achieved:Math.round(tgt*(base/100)),achPct:base/100});
     });
-  });
-  master.dbs.forEach(db => {
-    hist[db.id] = [];
-    months.forEach(m => {
-      weeks.forEach(w => {
-        const base = Math.random()*40+40;
-        hist[db.id].push({
-          week:`${w} ${m}`, month:m,
-          priAch:Math.round(db.priTgt*(base/100)),
-          priPct:Math.round(base)
-        });
-      });
+    ["W1","W2","W3","W4"].forEach((w,i)=>{
+      if(i >= curWeekNum) return;
+      const wb = 40+Math.random()*50;
+      hist[ent.id].push({weekLabel:w,month:curMonth,fy:curFY,achieved:Math.round((tgt/4)*(wb/100)),achPct:wb/100});
     });
   });
   return hist;
@@ -882,102 +732,350 @@ function saveTracker() {
   renderHome();
 }
 
-// ── TRENDS ────────────────────────────────────────────────────
-function setTrendView(v,btn) {
-  STATE.trendView=v;
-  document.querySelectorAll("#scr-trends .pill").forEach(p=>{if(p.id==="tv-ss"||p.id==="tv-db")p.classList.remove("active")});
+// ── TRENDS — full three-view engine ──────────────────────────
+function setEntView(v, btn) {
+  STATE.trendEntView = v;
+  document.querySelectorAll("#scr-trends button[id^='ent-']").forEach(b=>{
+    b.style.background = "transparent"; b.style.color = "var(--text2)";
+  });
+  btn.style.background = "var(--brand)"; btn.style.color = "#fff";
+  renderTrends();
+}
+
+function setTrendMode(mode, btn) {
+  STATE.trendMode = mode;
+  document.querySelectorAll(".trend-mode-btn").forEach(b=>b.classList.remove("active"));
   btn.classList.add("active");
-  renderTrendList();
+  renderTrends();
 }
 
 function renderTrends() {
-  const u = STATE.user;
-  const hist = STATE.history;
-  const months = [...new Set(
-    Object.values(hist).flat().map(h=>h.month).filter(Boolean)
-  )].filter(m=>MONTHS.includes(m)).sort((a,b)=>MONTHS.indexOf(a)-MONTHS.indexOf(b));
-  if(!months.includes(STATE.curMonth)&&months.length) STATE.curMonth=months[months.length-1];
-
-  $("trend-months").innerHTML = months.map(m=>`
-    <button class="pill ${m===STATE.curMonth?"active":""}" onclick="selectMonth('${m}',this)">${m}</button>`).join("");
-  renderTrendList();
+  if(!STATE.trendMode) STATE.trendMode = "monthly";
+  if(!STATE.trendEntView) STATE.trendEntView = "db";
+  const mode = STATE.trendMode;
+  if(mode === "monthly") renderTrendMonthly();
+  else if(mode === "l3m") renderTrendL3M();
+  else renderTrendWeekly();
 }
 
-function selectMonth(m,btn) {
-  STATE.curMonth=m;
-  document.querySelectorAll("#trend-months .pill").forEach(p=>p.classList.remove("active"));
-  btn.classList.add("active");
-  renderTrendList();
+function getEntities() {
+  const u = STATE.user;
+  const rsmName = u.role === "manager" ? Object.keys(MASTER)[0] : u.name;
+  const master = MASTER[rsmName];
+  if(!master) return {entities:[], rsmName, master:{ss:[],dbs:[]}};
+  const entities = STATE.trendEntView === "ss" ? master.ss : master.dbs;
+  return {entities, rsmName, master};
 }
 
-function renderTrendList() {
-  const u = STATE.user;
-  const master = MASTER[u.role==="manager"?Object.keys(MASTER)[0]:u.name];
-  if(!master) return;
+function getHistData(entityId, filterFn) {
+  const all = STATE.history[entityId] || [];
+  return filterFn ? all.filter(filterFn) : all;
+}
+
+function getFYFromMonth(month, year) {
+  const mIdx = MONTHS.indexOf(month);
+  // Indian FY: Apr–Mar. Apr(3)–Mar(2) = FY starts Apr
+  if(mIdx >= 3) return `FY${year}-${String(year+1).slice(2)}`;
+  return `FY${year-1}-${String(year).slice(2)}`;
+}
+
+// ── VIEW 1: Monthly LY vs TY ──────────────────────────────────
+function renderTrendMonthly() {
+  const {entities, rsmName} = getEntities();
+  const avCls = STATE.trendEntView === "ss" ? "av-b" : "av-g";
   const hist = STATE.history;
-  const entities = STATE.trendView==="ss"?master.ss:master.dbs;
-  const idKey = "id";
 
-  $("trend-list").innerHTML = entities.map(ent=>{
-    const allData=(hist[ent.id]||[]);
-    const mData=allData.filter(h=>h.month===STATE.curMonth);
-    const isOpen=STATE.expanded[ent.id];
+  // FY pills — detect available FYs
+  const allRows = Object.values(hist).flat();
+  const fys = [...new Set(allRows.map(r=>r.fy).filter(Boolean))].sort();
+  if(!fys.length) fys.push("FY2025-26","FY2024-25");
+  if(!STATE.curFY || !fys.includes(STATE.curFY)) STATE.curFY = fys[fys.length-1];
+  const prevFY = fys[fys.indexOf(STATE.curFY)-1] || null;
 
-    const secAvg=mData.length?Math.round(mData.reduce((a,h)=>a+(h.secPct||0),0)/mData.length):0;
-    const priAvg=mData.length?Math.round(mData.reduce((a,h)=>a+(h.priPct||0),0)/mData.length):0;
-    const secVal=mData.reduce((a,h)=>a+(h.secAch||0),0);
-    const priVal=mData.reduce((a,h)=>a+(h.priAch||0),0);
-    const mainPct=STATE.trendView==="ss"?secAvg:priAvg;
+  const fyPills = fys.map(fy=>`
+    <button style="flex-shrink:0;padding:5px 12px;border-radius:14px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid ${fy===STATE.curFY?"var(--brand)":"var(--border)"};color:${fy===STATE.curFY?"#fff":"var(--text2)"};background:${fy===STATE.curFY?"var(--brand)":"transparent"};font-family:var(--f)"
+      onclick="selectFY('${fy}',this)">${fy}</button>`).join("");
 
-    const weekBars=["W1","W2","W3","W4"].map(w=>{
-      const wd=mData.find(h=>h.week.startsWith(w));
-      const p=wd?(STATE.trendView==="ss"?(wd.secPct||0):(wd.priPct||0)):0;
-      return `<div class="sb" style="height:${Math.max(3,p*.28)}px;background:${bcol(p)}"></div>`;
-    }).join("");
+  const entCards = entities.map(ent=>{
+    const isOpen = STATE.expanded[ent.id]||false;
+    const tyData = getHistData(ent.id, r=>r.fy===STATE.curFY && r.weekLabel==="Monthly");
+    const lyData = prevFY ? getHistData(ent.id, r=>r.fy===prevFY && r.weekLabel==="Monthly") : [];
 
-    const weekRows=["W1","W2","W3","W4"].map(w=>{
-      const wd=mData.find(h=>h.week.startsWith(w));
-      if(!wd) return `<div class="week-row"><span style="color:var(--text2)">${w} ${STATE.curMonth}</span><span style="color:var(--text3)">No data</span></div>`;
-      const sp=wd.secPct||0; const pp=wd.priPct||0;
-      return `<div class="week-row">
-        <span style="font-weight:600">${w} ${STATE.curMonth}</span>
-        <div style="display:flex;gap:5px;align-items:center">
-          <span class="b ${pcls(sp)}" style="font-size:10px">${sp}% sec</span>
-          <span class="b ${pcls(pp)}" style="font-size:10px">${pp}% pri</span>
+    // YoY avg
+    const tyAvg = tyData.length ? Math.round(tyData.reduce((a,r)=>a+(r.achPct||0),0)/tyData.length*100) : 0;
+    const lyAvg = lyData.length ? Math.round(lyData.reduce((a,r)=>a+(r.achPct||0),0)/lyData.length*100) : 0;
+    const yoy = tyAvg - lyAvg;
+    const yoyBadge = yoy > 0 ? `<span class="b b-g">+${yoy}%</span>` : yoy < 0 ? `<span class="b b-r">${yoy}%</span>` : `<span class="b b-gray">—</span>`;
+
+    // Monthly comparison bars
+    const monthBars = MONTHS.map(m=>{
+      const ty = tyData.find(r=>r.month===m);
+      const ly = lyData.find(r=>r.month===m);
+      if(!ty && !ly) return "";
+      const tyP = ty ? Math.round((ty.achPct||0)*100) : 0;
+      const lyP = ly ? Math.round((ly.achPct||0)*100) : 0;
+      const tyAch = ty ? fmt(ty.achieved||0) : "—";
+      const lyAch = ly ? fmt(ly.achieved||0) : "—";
+      return `<div class="cmp-row">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+          <span style="font-weight:700">${m}</span>
+          <span style="color:var(--text2);font-size:10px">${tyAch} vs ${lyAch}</span>
         </div>
+        <div class="cmp-bar-row"><span class="cmp-yr">TY</span><div class="cmp-bar-wrap"><div class="cmp-bar-fill" style="width:${Math.min(tyP,100)}%;background:${bcol(tyP)}"></div></div><span class="cmp-val" style="color:${bcol(tyP)}">${tyP}%</span></div>
+        <div class="cmp-bar-row"><span class="cmp-yr">LY</span><div class="cmp-bar-wrap"><div class="cmp-bar-fill" style="width:${Math.min(lyP,100)}%;background:var(--border)"></div></div><span class="cmp-val" style="color:var(--text2)">${lyP}%</span></div>
       </div>`;
     }).join("");
 
-    const avCls=STATE.trendView==="ss"?"av-b":"av-g";
     return `<div class="ent">
       <div class="ent-hdr" onclick="toggleEnt('${ent.id}')">
         <div class="av ${avCls}">${ent.name.slice(0,2).toUpperCase()}</div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ent.name}</div>
-          <div style="font-size:11px;color:var(--text2)">${ent.town||ent.area||""}</div>
+          <div style="font-size:11px;color:var(--text2)">YoY avg: ${yoyBadge}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <div class="spark">${weekBars}</div>
-          <span class="b ${pcls(mainPct)}">${mainPct}%</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="b ${pcls(tyAvg)}">${tyAvg}%</span>
           <span style="font-size:14px;color:var(--text2)">${isOpen?"▾":"▸"}</span>
         </div>
       </div>
-      ${isOpen?`<div class="ent-body">
-        <div class="metric-row">
-          <div class="metric-box"><div class="metric-v" style="color:${bcol(secAvg)}">${secAvg}%</div><div class="metric-l">Sec avg</div></div>
-          <div class="metric-box"><div class="metric-v" style="color:${bcol(priAvg)}">${priAvg}%</div><div class="metric-l">Pri avg</div></div>
-          <div class="metric-box"><div class="metric-v">${fmt(STATE.trendView==="ss"?secVal:priVal)}</div><div class="metric-l">₹ total</div></div>
-          <div class="metric-box"><div class="metric-v">${mData.length}</div><div class="metric-l">Weeks</div></div>
-        </div>
-        ${weekRows}
-      </div>`:""}
+      ${isOpen ? `<div class="ent-body">
+        <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px">MONTHLY — TY vs LY</div>
+        ${monthBars || `<div style="font-size:12px;color:var(--text2)">No monthly data yet. Add rows to 5_History sheet.</div>`}
+      </div>` : ""}
     </div>`;
   }).join("");
+
+  $("trend-content").innerHTML = `
+    <div style="display:flex;gap:5px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px">${fyPills}</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Tap any card to see month-by-month breakdown</div>
+    ${entCards || `<div class="card" style="color:var(--text2);text-align:center;padding:20px">No entities found</div>`}`;
+}
+
+function selectFY(fy, btn) {
+  STATE.curFY = fy;
+  renderTrendMonthly();
+}
+
+// ── VIEW 2: L3M ───────────────────────────────────────────────
+function renderTrendL3M() {
+  const {entities, rsmName} = getEntities();
+  const avCls = STATE.trendEntView === "ss" ? "av-b" : "av-g";
+  const hist = STATE.history;
+  const now = new Date();
+  const curMIdx = now.getMonth();
+
+  // L3M = current month + prev 2 months
+  const l3mMonths = [0,1,2].map(i=>{
+    const idx = ((curMIdx - i) + 12) % 12;
+    return MONTHS[idx];
+  }).reverse();
+  const l3mMonthsLY = l3mMonths; // same month names, different FY
+
+  // Detect current and last FY
+  const allRows = Object.values(hist).flat();
+  const fys = [...new Set(allRows.map(r=>r.fy).filter(Boolean))].sort();
+  const curFY = fys[fys.length-1] || "FY2025-26";
+  const prevFY = fys[fys.indexOf(curFY)-1] || null;
+
+  // Team L3M totals
+  let tyTotal=0, lyTotal=0, tyPcts=[], lyPcts=[];
+  entities.forEach(ent=>{
+    const tyRows = getHistData(ent.id, r=>r.fy===curFY && l3mMonths.includes(r.month) && r.weekLabel==="Monthly");
+    const lyRows = prevFY ? getHistData(ent.id, r=>r.fy===prevFY && l3mMonthsLY.includes(r.month) && r.weekLabel==="Monthly") : [];
+    tyTotal += tyRows.reduce((a,r)=>a+(r.achieved||0),0);
+    lyTotal += lyRows.reduce((a,r)=>a+(r.achieved||0),0);
+    const tyA = tyRows.length ? tyRows.reduce((a,r)=>a+(r.achPct||0),0)/tyRows.length : 0;
+    const lyA = lyRows.length ? lyRows.reduce((a,r)=>a+(r.achPct||0),0)/lyRows.length : 0;
+    if(tyA) tyPcts.push(tyA); if(lyA) lyPcts.push(lyA);
+  });
+  const tyAvgPct = tyPcts.length ? Math.round(tyPcts.reduce((a,b)=>a+b,0)/tyPcts.length*100) : 0;
+  const lyAvgPct = lyPcts.length ? Math.round(lyPcts.reduce((a,b)=>a+b,0)/lyPcts.length*100) : 0;
+  const growth = lyTotal > 0 ? Math.round((tyTotal-lyTotal)/lyTotal*100) : 0;
+  const growthColor = growth >= 0 ? "#a6e3a1" : "#ff6b6b";
+
+  const heroCard = `
+    <div style="background:var(--brand2);border-radius:var(--r);padding:14px;margin-bottom:10px">
+      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-bottom:8px">L3M — ${l3mMonths.join(", ")}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:10px;color:rgba(255,255,255,.5)">This year</div>
+          <div style="font-size:20px;font-weight:800;color:#fff">${fmt(tyTotal)}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.4)">avg ${tyAvgPct}%</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:rgba(255,255,255,.5)">Last year</div>
+          <div style="font-size:20px;font-weight:800;color:rgba(255,255,255,.55)">${fmt(lyTotal)}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.4)">avg ${lyAvgPct}%</div>
+        </div>
+      </div>
+      <div style="border-top:1px solid rgba(255,255,255,.1);padding-top:10px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px;font-weight:800;color:${growthColor}">${growth>=0?"+":""}${growth}%</span>
+        <span style="font-size:11px;color:rgba(255,255,255,.5)">vs same 3 months last year</span>
+      </div>
+    </div>`;
+
+  const entCards = entities.map(ent=>{
+    const isOpen = STATE.expanded[ent.id]||false;
+    const tyRows = getHistData(ent.id, r=>r.fy===curFY && l3mMonths.includes(r.month) && r.weekLabel==="Monthly");
+    const lyRows = prevFY ? getHistData(ent.id, r=>r.fy===prevFY && l3mMonthsLY.includes(r.month) && r.weekLabel==="Monthly") : [];
+    const tyVal = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
+    const lyVal = lyRows.reduce((a,r)=>a+(r.achieved||0),0);
+    const tyP = tyRows.length ? Math.round(tyRows.reduce((a,r)=>a+(r.achPct||0),0)/tyRows.length*100) : 0;
+    const lyP = lyRows.length ? Math.round(lyRows.reduce((a,r)=>a+(r.achPct||0),0)/lyRows.length*100) : 0;
+    const diff = lyVal > 0 ? Math.round((tyVal-lyVal)/lyVal*100) : 0;
+    const diffBadge = diff > 0 ? `<span class="b b-g">+${diff}%</span>` : diff < 0 ? `<span class="b b-r">${diff}%</span>` : `<span class="b b-gray">—</span>`;
+
+    const monthBreakdown = l3mMonths.map(m=>{
+      const tr = tyRows.find(r=>r.month===m);
+      return tr ? `<span style="font-size:10px;color:var(--text2)">${m}: <b style="color:var(--text)">${Math.round((tr.achPct||0)*100)}%</b></span>` : "";
+    }).filter(Boolean).join(" · ");
+
+    return `<div class="ent">
+      <div class="ent-hdr" onclick="toggleEnt('${ent.id}')">
+        <div class="av ${avCls}">${ent.name.slice(0,2).toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ent.name}</div>
+          <div style="font-size:10px;color:var(--text2)">TY ${fmt(tyVal)} vs LY ${fmt(lyVal)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">${diffBadge}<span style="font-size:14px;color:var(--text2)">${isOpen?"▾":"▸"}</span></div>
+      </div>
+      ${isOpen ? `<div class="ent-body">
+        <div class="cmp-bar-row" style="margin-bottom:4px"><span class="cmp-yr">TY</span><div class="cmp-bar-wrap"><div class="cmp-bar-fill" style="width:${Math.min(tyP,100)}%;background:var(--brand)"></div></div><span class="cmp-val" style="color:var(--brand)">${tyP}%</span></div>
+        <div class="cmp-bar-row" style="margin-bottom:8px"><span class="cmp-yr">LY</span><div class="cmp-bar-wrap"><div class="cmp-bar-fill" style="width:${Math.min(lyP,100)}%;background:var(--border)"></div></div><span class="cmp-val" style="color:var(--text2)">${lyP}%</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">${monthBreakdown}</div>
+      </div>` : ""}
+    </div>`;
+  }).join("");
+
+  $("trend-content").innerHTML = heroCard +
+    `<div class="slbl">${STATE.trendEntView.toUpperCase()}-wise L3M comparison</div>` +
+    (entCards || `<div class="card" style="color:var(--text2);text-align:center;padding:20px">No L3M data yet</div>`);
+}
+
+// ── VIEW 3: Current month week-wise ───────────────────────────
+function renderTrendWeekly() {
+  const {entities, rsmName} = getEntities();
+  const avCls = STATE.trendEntView === "ss" ? "av-b" : "av-g";
+  const hist = STATE.history;
+  const now = new Date();
+  const curMonthName = MONTHS[now.getMonth()];
+  const curYear = now.getFullYear();
+  const curFY = getFYFromMonth(curMonthName, curYear);
+
+  // Get all weekly rows for current month
+  const weeklyRows = (id) => getHistData(id, r=>
+    r.month === curMonthName &&
+    r.fy === curFY &&
+    r.weekLabel !== "Monthly"
+  );
+
+  // Team MTD totals
+  let mtdTotal=0, tgt=0;
+  entities.forEach(ent=>{
+    const rows = weeklyRows(ent.id);
+    mtdTotal += rows.reduce((a,r)=>a+(r.achieved||0),0);
+    tgt += STATE.trendEntView==="ss"
+      ? (MASTER[rsmName]?.ss.find(s=>s.id===ent.id)?.secTgt||0)
+      : (MASTER[rsmName]?.dbs.find(d=>d.id===ent.id)?.priTgt||0);
+  });
+  const mtdPct = tgt > 0 ? Math.round(mtdTotal/tgt*100) : 0;
+
+  // Team week-by-week bars
+  const wkTotals = ["W1","W2","W3","W4"].map(w=>{
+    let wTotal=0;
+    entities.forEach(ent=>{
+      const r = weeklyRows(ent.id).find(r=>r.weekLabel===w || r.weekLabel.startsWith(w+" "));
+      wTotal += r ? (r.achieved||0) : 0;
+    });
+    return wTotal;
+  });
+  const maxWk = Math.max(...wkTotals, 1);
+  const curWeekIdx = Math.ceil(now.getDate()/7) - 1;
+
+  const teamBars = wkTotals.map((v,i)=>{
+    const h = Math.round((v/maxWk)*52);
+    const isPast = i < curWeekIdx;
+    const isCur  = i === curWeekIdx;
+    const bg = isPast ? "var(--brand)" : isCur ? "var(--amber-bg)" : "var(--border)";
+    const border = isCur ? `border:1px solid var(--amber)` : "";
+    const pctLbl = tgt>0 && v>0 ? Math.round(v/(tgt/4)*100)+"%" : "—";
+    const pctColor = isPast||isCur ? bcol(parseInt(pctLbl)||0) : "var(--text2)";
+    return `<div class="week-bar-col">
+      <div class="week-bar-pct" style="color:${pctColor}">${pctLbl}</div>
+      <div class="week-bar" style="height:${Math.max(6,h)}px;background:${bg};${border}"></div>
+      <div class="week-bar-lbl">W${i+1}</div>
+    </div>`;
+  }).join("");
+
+  const heroCard = `
+    <div class="card">
+      <div class="card-title">${curMonthName.toUpperCase()} ${curYear} — WEEKLY PROGRESS
+        <span class="b ${pcls(mtdPct)}">${mtdPct}% MTD</span>
+      </div>
+      <div class="week-bar-wrap">${teamBars}</div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);padding-top:8px;border-top:1px solid var(--border)">
+        <span>MTD: <b style="color:var(--text)">${fmt(mtdTotal)}</b></span>
+        <span>Target: <b style="color:var(--text)">${fmt(tgt)}</b></span>
+        <span>Gap: <b style="color:var(--red)">${fmt(Math.max(0,tgt-mtdTotal))}</b></span>
+      </div>
+    </div>`;
+
+  const entCards = entities.map(ent=>{
+    const isOpen = STATE.expanded[ent.id]||false;
+    const rows = weeklyRows(ent.id);
+    const entTgt = STATE.trendEntView==="ss"
+      ? (MASTER[rsmName]?.ss.find(s=>s.id===ent.id)?.secTgt||0)
+      : (MASTER[rsmName]?.dbs.find(d=>d.id===ent.id)?.priTgt||0);
+    const mtd = rows.reduce((a,r)=>a+(r.achieved||0),0);
+    const mtdP = entTgt > 0 ? Math.round(mtd/entTgt*100) : 0;
+    const wkValues = ["W1","W2","W3","W4"].map(w=>rows.find(r=>r.weekLabel===w||r.weekLabel.startsWith(w+" ")));
+    const maxV = Math.max(...wkValues.map(r=>r?.achieved||0), 1);
+
+    const miniBars = wkValues.map((r,i)=>{
+      const v = r?.achieved||0;
+      const h = Math.round((v/maxV)*24);
+      const isPast = i < curWeekIdx;
+      const isCur  = i === curWeekIdx;
+      const bg = isPast ? "var(--brand)" : isCur ? "var(--amber-bg)" : "var(--border)";
+      const brd = isCur ? "border:1px solid var(--amber)" : "";
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
+        <div style="width:100%;height:${Math.max(4,h)}px;background:${bg};border-radius:2px 2px 0 0;${brd}"></div>
+        <div style="font-size:9px;color:var(--text2)">W${i+1}</div>
+      </div>`;
+    }).join("");
+
+    const wkLabels = wkValues.map((r,i)=>
+      r ? `W${i+1}: <b style="color:${i===curWeekIdx?"var(--amber)":"var(--text)"}">${fmt(r.achieved||0)}</b>`
+        : `W${i+1}: <b style="color:var(--text2)">—</b>`
+    ).join(" · ");
+
+    return `<div class="ent">
+      <div class="ent-hdr" onclick="toggleEnt('${ent.id}')">
+        <div class="av ${avCls}">${ent.name.slice(0,2).toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ent.name}</div>
+          <div style="font-size:10px;color:var(--text2)">${curMonthName} MTD: ${fmt(mtd)} of ${fmt(entTgt)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="b ${pcls(mtdP)}">${mtdP}%</span>
+          <span style="font-size:14px;color:var(--text2)">${isOpen?"▾":"▸"}</span>
+        </div>
+      </div>
+      ${isOpen ? `<div class="ent-body">
+        <div style="display:flex;gap:4px;align-items:flex-end;height:34px;margin-bottom:6px">${miniBars}</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.8">${wkLabels}</div>
+      </div>` : ""}
+    </div>`;
+  }).join("");
+
+  $("trend-content").innerHTML = heroCard +
+    `<div class="slbl">${STATE.trendEntView.toUpperCase()}-wise weekly drill-down</div>` +
+    (entCards || `<div class="card" style="color:var(--text2);text-align:center;padding:20px">No data for ${curMonthName} yet</div>`);
 }
 
 function toggleEnt(id) {
-  STATE.expanded[id]=!STATE.expanded[id];
-  renderTrendList();
+  STATE.expanded[id] = !STATE.expanded[id];
+  renderTrends();
 }
 
 // ── PJP EXECUTION ─────────────────────────────────────────────
@@ -1107,20 +1205,86 @@ async function syncToSheet(week, month, master, rsmName) {
 }
 
 async function getGoogleToken() {
-  // Uses Google Identity Services for token
   return new Promise(resolve=>{
     if(window.google?.accounts?.oauth2) {
+      const cached = localStorage.getItem("gtoken");
+      const ts = +localStorage.getItem("gtoken_ts")||0;
+      if(cached && Date.now()-ts < 55*60*1000){ resolve(cached); return; }
       const client = google.accounts.oauth2.initTokenClient({
         client_id: "796721484947-p13kan6u6rleaj2f6jq81tb1s5hsc19o.apps.googleusercontent.com",
-        //client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
         scope: "https://www.googleapis.com/auth/spreadsheets",
-        callback: resp => resolve(resp.access_token)
+        callback: resp => {
+          localStorage.setItem("gtoken", resp.access_token);
+          localStorage.setItem("gtoken_ts", Date.now());
+          resolve(resp.access_token);
+        }
       });
       client.requestAccessToken({prompt:""});
-    } else {
-      resolve(null);
-    }
+    } else { resolve(null); }
   });
+}
+
+// ── Load history from 5_History sheet ────────────────────────
+// Columns: A=RSM, B=EntityType, C=EntityName, D=Town,
+//          E=WeekLabel, F=PeriodLabel, G=Month, H=Quarter,
+//          I=FinancialYear, J=Target, K=Achieved, L=AchPct
+async function loadHistoryFromSheet() {
+  const token = await getGoogleToken();
+  if(!token) return;
+  const sheetId = STATE.sheetId;
+  if(!sheetId || sheetId==="YOUR_SHEET_ID_HERE") return;
+  try {
+    $("sync-status").textContent = "Loading history...";
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/5_History!A2:L5000`;
+    const res = await fetch(url, {headers:{"Authorization":"Bearer "+token}});
+    const json = await res.json();
+    const rows = json.values||[];
+    if(!rows.length){ $("sync-status").textContent=""; return; }
+
+    const rsmName = STATE.user.name;
+    const master = MASTER[rsmName];
+    if(!master) return;
+    const newHist = {};
+
+    rows.forEach(r=>{
+      if(!r[0]) return;
+      if(r[0].toLowerCase().trim() !== rsmName) return;
+      const entityType = (r[1]||"").trim().toUpperCase(); // SS or DB
+      const entityName = (r[2]||"").trim();
+      const weekLabel  = (r[4]||"Monthly").trim();
+      const month      = (r[6]||"").trim();
+      const fy         = (r[8]||"").trim();
+      const achieved   = parseFloat(r[10])||0;
+      const achPct     = parseFloat(r[11])||0;
+
+      // Match to entity id
+      let entId = null;
+      if(entityType==="SS"){
+        const ss = master.ss.find(s=>s.name.toLowerCase()===entityName.toLowerCase());
+        if(ss) entId = ss.id;
+      } else {
+        const db = master.dbs.find(d=>d.name.toLowerCase()===entityName.toLowerCase());
+        if(db) entId = db.id;
+      }
+      if(!entId) return;
+
+      if(!newHist[entId]) newHist[entId]=[];
+      // Avoid duplicates
+      const exists = newHist[entId].find(h=>h.weekLabel===weekLabel && h.month===month && h.fy===fy);
+      if(!exists) newHist[entId].push({weekLabel, month, fy, achieved, achPct});
+    });
+
+    if(Object.keys(newHist).length > 0){
+      STATE.history = newHist;
+      saveLocalData();
+    }
+    $("sync-status").textContent = "History loaded ✓";
+    setTimeout(()=>$("sync-status").textContent="", 3000);
+    renderHome(); renderTrends();
+  } catch(e){
+    console.log("Sheet read error:",e);
+    $("sync-status").textContent="";
+  }
 }
 
 function queueSync(week, month) {
