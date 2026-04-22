@@ -1,10 +1,10 @@
 {
-  "name": "SalesOps Field App",
-  "short_name": "SalesOps",
-  "description": "Sales operations field app for RSMs — PJP, tracker, trends, and history",
+  "name": "RMC Pulse — Field App",
+  "short_name": "RMC Pulse",
+  "description": "RMC India field operations platform — PJP, tracker, trends and history for RSMs",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#16213E",
+  "background_color": "#0F3460",
   "theme_color": "#0F3460",
   "orientation": "portrait",
   "icons": [
@@ -19,8 +19,15 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
-  ],
+  ]
+},
   "categories": ["business", "productivity"],
   "screenshots": [],
   "shortcuts": [
