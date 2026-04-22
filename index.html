@@ -1222,15 +1222,58 @@ async function getGoogleToken() {
 // Columns: A=RSM, B=EntityType, C=EntityName, D=Town,
 //          E=WeekLabel, F=PeriodLabel, G=Month, H=Quarter,
 //          I=FinancialYear, J=Target, K=Achieved, L=AchPct
+
+// ── CSV parser for public Sheet read ─────────────────────────
+function parseCSV(text) {
+  const rows = [];
+  const lines = text.split("\n");
+  for(const line of lines) {
+    if(!line.trim()) continue;
+    const cols = [];
+    let cur = "", inQ = false;
+    for(let i=0; i<line.length; i++) {
+      const ch = line[i];
+      if(ch==='"' && !inQ){ inQ=true; continue; }
+      if(ch==='"' && inQ && line[i+1]==='"'){ cur+='"'; i++; continue; }
+      if(ch==='"' && inQ){ inQ=false; continue; }
+      if(ch===',' && !inQ){ cols.push(cur.trim()); cur=""; continue; }
+      cur+=ch;
+    }
+    cols.push(cur.trim());
+    rows.push(cols);
+  }
+  return rows;
+}
+
 async function loadHistoryFromSheet() {
-  const token = await getGoogleToken();
-  if(!token) return;
   const sheetId = STATE.sheetId;
   if(!sheetId || sheetId==="YOUR_SHEET_ID_HERE") return;
   try {
     $("sync-status").textContent = "Loading history...";
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/5_History!A2:L5000`;
-    const res = await fetch(url, {headers:{"Authorization":"Bearer "+token}});
+    // Try public read first (no OAuth needed if Sheet is shared as Anyone can view)
+    // Uses the export-as-csv endpoint — no API key required
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=5_History`;
+    let rows = [];
+    try {
+      const csvRes = await fetch(csvUrl);
+      if(csvRes.ok) {
+        const csvText = await csvRes.text();
+        rows = parseCSV(csvText).slice(1); // skip header row
+      }
+    } catch(e) { console.log("CSV fetch failed, trying OAuth..."); }
+
+    // Fallback to OAuth if public read failed
+    if(!rows.length) {
+      const token = await getGoogleToken();
+      if(token) {
+        const apiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/5_History!A2:L5000`;
+        const res = await fetch(apiUrl, {headers:{"Authorization":"Bearer "+token}});
+        const json = await res.json();
+        rows = json.values||[];
+      }
+    }
+
+    if(!rows.length){ $("sync-status").textContent="No data found in 5_History sheet"; return; }
     const json = await res.json();
     const rows = json.values||[];
     if(!rows.length){ $("sync-status").textContent=""; return; }
@@ -1275,16 +1318,24 @@ async function loadHistoryFromSheet() {
       if(!exists) newHist[entId].push({weekLabel, month, fy, achieved, target, achPct});
     });
 
+    console.log("Rows read from Sheet:", rows.length);
+    console.log("Matched entities:", Object.keys(newHist).length);
+    console.log("Sample row:", rows[0]);
+
     if(Object.keys(newHist).length > 0){
       STATE.history = newHist;
       saveLocalData();
+      $("sync-status").textContent = `History loaded — ${rows.length} rows ✓`;
+    } else {
+      $("sync-status").textContent = "Sheet connected but no matching data found";
+      console.warn("No entities matched. Check RSM name in Sheet matches data.js exactly.");
     }
-    $("sync-status").textContent = "History loaded ✓";
-    setTimeout(()=>$("sync-status").textContent="", 3000);
+    setTimeout(()=>$("sync-status").textContent="", 5000);
     renderHome(); renderTrends();
   } catch(e){
-    console.log("Sheet read error:",e);
-    $("sync-status").textContent="";
+    console.error("Sheet read error:", e);
+    $("sync-status").textContent = "Error reading Sheet — check console";
+    setTimeout(()=>$("sync-status").textContent="", 5000);
   }
 }
 
