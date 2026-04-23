@@ -1,45 +1,52 @@
- const USERS = {
-  "rajesh upadhyay":     {zone:"Pune",                      pin:"1234", role:"rsm"},
-  "shivaji tamgale":     {zone:"PCMC",                      pin:"XXXX", role:"rsm"},
-  "sambhaji jadhav":     {zone:"Satara",                    pin:"XXXX", role:"rsm"},
-  "rahul chougule":      {zone:"Kolhapur",                  pin:"XXXX", role:"rsm"},
-  "nandkumar shirgave":  {zone:"Sangli / Solapur / Konkan", pin:"XXXX", role:"rsm"},
-  "chandpasha pathan":   {zone:"Marathwada",                pin:"XXXX", role:"rsm"},
-  "vijay wagh":          {zone:"Ahmednagar",                pin:"XXXX", role:"rsm"},
-  "syd. waseemuddin":    {zone:"Aurangabad",                pin:"XXXX", role:"rsm"},
-  "naresh lade":         {zone:"Jalna",                     pin:"XXXX", role:"rsm"},
-  "rishabh sinha":       {zone:"All zones",                 pin:"9999", role:"manager"}
+// ═══════════════════════════════════════════════════════════════
+// data.js — RMC Pulse app data
+// This file is separate from index.html so it never gets
+// overwritten when the app code is updated.
+// Edit ONLY this file to: add RSMs, change PINs, add SS/DBs.
+// ═══════════════════════════════════════════════════════════════
+// ── USER STORE ──────────────────────────────────────────────
+const USERS = {
+  "rajesh upadhyay": {zone:"Pune", pin:"1234", role:"rsm"},
+  "shivaji tamgale": {zone:"Pune Rural", pin:"1234", role:"rsm"},
+  "sambhaji jadhav": {zone:"Satara", pin:"1234", role:"rsm"},
+  "rahul chougule": {zone:"Kolhapur", pin:"1234", role:"rsm"},
+  "nandkumar shirgave": {zone:"Sangli / Solapur / Konkan", pin:"1234", role:"rsm"},
+  "chandpasha pathan": {zone:"Marathwada", pin:"1234", role:"rsm"},
+  "vijay wagh": {zone:"Ahmednagar", pin:"1234", role:"rsm"},
+  "syd. waseemuddin": {zone:"Aurangabad", pin:"1234", role:"rsm"},
+  "naresh lade": {zone:"Jalna", pin:"1234", role:"rsm"},
+  "rishabh sinha":   {zone:"All zones", pin:"9999", role:"manager"}
 };
 
-// ── MASTER DATA (mirrors your Google Sheet) ───────────────────
+// ── MASTER DATA ──────────────────────────────────────────────
 const MASTER = {
   "rajesh upadhyay": {
     ss: [
-      {id:"ss_raj_1",name:"NEW MANGAL SALES, DATTA NAGAR",town:"DATTA NAGAR",secTgt:100000},
-      {id:"ss_raj_2",name:"TEAM 4 LOGISTICS",town:"TEAM 4 LOGISTICS",secTgt:100000},
-      {id:"ss_raj_3",name:"SALMA FOODS & BEVERAGES",town:"SALMA FOODS & BEVERAGES",secTgt:100000},
-      {id:"ss_raj_4",name:"SHIV SAI TRADING LONI",town:"SHIV SAI TRADING LONI",secTgt:100000},
-      {id:"ss_raj_5",name:"JAY MATA DI RETAIL",town:"JAY MATA DI RETAIL",secTgt:100000},
+      {id:"ss_raj_1",name:"NEW MANGAL SALES, DATTA NAGAR",town:"DATTA NAGAR",secTgt:2000000},
+      {id:"ss_raj_2",name:"TEAM 4 LOGISTICS",town:"TEAM 4 LOGISTICS",secTgt:2000000},
+      {id:"ss_raj_3",name:"SALMA FOODS & BEVERAGES",town:"SALMA FOODS & BEVERAGES",secTgt:2500000},
+      {id:"ss_raj_4",name:"SHIV SAI TRADING LONI",town:"SHIV SAI TRADING LONI",secTgt:1000000},
+      {id:"ss_raj_5",name:"JAY MATA DI RETAIL",town:"JAY MATA DI RETAIL",secTgt:3000000},
     ],
     dbs: [
-      {id:"db_raj_1",name:"ADESH MARKETING",ssId:"ss_raj_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_2",name:"ABASAHEB CHAUDHARY & SONS",ssId:"ss_raj_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_3",name:"BALAJI TRADING CO. PETH",ssId:"ss_raj_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_4",name:"SHRADDHA MARKETING",ssId:"ss_raj_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_5",name:"AAYUSH ENTERPRISES,PUNE",ssId:"ss_raj_5",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_6",name:"S K ENTERPRISES,YD",ssId:"ss_raj_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_7",name:"SHRI BHIMASHANKAR ENTERPRISES",ssId:"ss_raj_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_8",name:"MAHALAXMI DISTRIBUTORS,YD",ssId:"ss_raj_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_9",name:"SRUSHTI AGENCY",ssId:"ss_raj_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_10",name:"LAXMI TRADERS,HADAPSAR",ssId:"ss_raj_5",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_11",name:"POONAM ENTERPRISES- STATION",ssId:"ss_raj_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_12",name:"S P ENTERPRISES,HADAPSAR",ssId:"ss_raj_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_13",name:"Mahalaxmi Agencies,Sinhgad Road",ssId:"ss_raj_3",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_14",name:"Anandratna Sales,Wagholi",ssId:"ss_raj_4",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_15",name:"ANAYA TRADERS",ssId:"ss_raj_5",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_16",name:"MANE ENTERPRISES,BHOR",ssId:"ss_raj_1",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_17",name:"AARYA DISTRIBUTORS,SHIRUR",ssId:"ss_raj_2",priTgt:200000,area:"Active",mustVisit:false},
-      {id:"db_raj_18",name:"Vimal Trading Co. Bhandgaon",ssId:"ss_raj_3",priTgt:200000,area:"Active",mustVisit:false},
+      {id:"db_raj_1",name:"ADESH MARKETING",ssId:"ss_raj_1",priTgt:1800000,area:"Active",mustVisit:false},
+      {id:"db_raj_2",name:"ABASAHEB CHAUDHARY & SONS",ssId:"ss_raj_2",priTgt:1400000,area:"Active",mustVisit:false},
+      {id:"db_raj_3",name:"BALAJI TRADING CO. PETH",ssId:"ss_raj_3",priTgt:1500000,area:"Active",mustVisit:false},
+      {id:"db_raj_4",name:"SHRADDHA MARKETING",ssId:"ss_raj_4",priTgt:700000,area:"Active",mustVisit:false},
+      {id:"db_raj_5",name:"AAYUSH ENTERPRISES,PUNE",ssId:"ss_raj_5",priTgt:700000,area:"Active",mustVisit:false},
+      {id:"db_raj_6",name:"S K ENTERPRISES,YD",ssId:"ss_raj_1",priTgt:900000,area:"Active",mustVisit:false},
+      {id:"db_raj_7",name:"SHRI BHIMASHANKAR ENTERPRISES",ssId:"ss_raj_2",priTgt:900000,area:"Active",mustVisit:false},
+      {id:"db_raj_8",name:"MAHALAXMI DISTRIBUTORS,YD",ssId:"ss_raj_3",priTgt:800000,area:"Active",mustVisit:false},
+      {id:"db_raj_9",name:"SRUSHTI AGENCY",ssId:"ss_raj_4",priTgt:800000,area:"Active",mustVisit:false},
+      {id:"db_raj_10",name:"LAXMI TRADERS,HADAPSAR",ssId:"ss_raj_5",priTgt:500000,area:"Active",mustVisit:false},
+      {id:"db_raj_11",name:"POONAM ENTERPRISES- STATION",ssId:"ss_raj_1",priTgt:1000000,area:"Active",mustVisit:false},
+      {id:"db_raj_12",name:"S P ENTERPRISES,HADAPSAR",ssId:"ss_raj_2",priTgt:150000,area:"Active",mustVisit:false},
+      {id:"db_raj_13",name:"Mahalaxmi Agencies,Sinhgad Road",ssId:"ss_raj_3",priTgt:800000,area:"Active",mustVisit:false},
+      {id:"db_raj_14",name:"Anandratna Sales,Wagholi",ssId:"ss_raj_4",priTgt:600000,area:"Active",mustVisit:false},
+      {id:"db_raj_15",name:"ANAYA TRADERS",ssId:"ss_raj_5",priTgt:250000,area:"Active",mustVisit:false},
+      {id:"db_raj_16",name:"MANE ENTERPRISES,BHOR",ssId:"ss_raj_1",priTgt:250000,area:"Active",mustVisit:false},
+      {id:"db_raj_17",name:"AARYA DISTRIBUTORS,SHIRUR",ssId:"ss_raj_2",priTgt:150000,area:"Active",mustVisit:false},
+      {id:"db_raj_18",name:"Vimal Trading Co. Bhandgaon",ssId:"ss_raj_3",priTgt:250000,area:"Active",mustVisit:false},
     ]
   },
   "shivaji tamgale": {
