@@ -340,7 +340,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
 <script>
 // ── CONFIG — replace with your actual Sheet ID ────────────────
 const DEFAULT_SHEET_ID = "YOUR_SHEET_ID_HERE";
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTHS = ["Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar"]; // Indian FY order
+const FY_MONTHS_ORDER = MONTHS; // Apr=Q1 start
+const MONTH_TO_QTR = {Apr:"Q1",May:"Q1",Jun:"Q1",Jul:"Q2",Aug:"Q2",Sep:"Q2",Oct:"Q3",Nov:"Q3",Dec:"Q3",Jan:"Q4",Feb:"Q4",Mar:"Q4"};
 const DAYS   = ["Mon","Tue","Wed","Thu","Fri","Sat"];
 
 // ── USER STORE + MASTER DATA ──────────────────────────────────
@@ -443,6 +445,7 @@ function _seedHistory() {
   const master = MASTER[name];
   if(!master) return {};
   const hist = {};
+  // Indian FY order: Apr–Mar. FY2026-27 = current FY (Apr 2026 onwards)
   const fyMonths = [
     {month:"Apr",fy:"FY2024-25"},{month:"May",fy:"FY2024-25"},
     {month:"Jun",fy:"FY2024-25"},{month:"Jul",fy:"FY2024-25"},
@@ -456,11 +459,13 @@ function _seedHistory() {
     {month:"Oct",fy:"FY2025-26"},{month:"Nov",fy:"FY2025-26"},
     {month:"Dec",fy:"FY2025-26"},{month:"Jan",fy:"FY2025-26"},
     {month:"Feb",fy:"FY2025-26"},{month:"Mar",fy:"FY2025-26"},
+    {month:"Apr",fy:"FY2026-27"},
   ];
   const now = new Date();
   const curMonth = MONTHS[now.getMonth()];
   const curYear = now.getFullYear();
-  const curFY = curMonth==="Jan"||curMonth==="Feb"||curMonth==="Mar"
+  const q4 = ["Jan","Feb","Mar"];
+  const curFY = q4.includes(curMonth)
     ? `FY${curYear-1}-${String(curYear).slice(2)}`
     : `FY${curYear}-${String(curYear+1).slice(2)}`;
   const curWeekNum = Math.ceil(now.getDate()/7);
@@ -749,10 +754,11 @@ function getHistData(entityId, filterFn) {
 }
 
 function getFYFromMonth(month, year) {
-  const mIdx = MONTHS.indexOf(month);
-  // Indian FY: Apr–Mar. Apr(3)–Mar(2) = FY starts Apr
-  if(mIdx >= 3) return `FY${year}-${String(year+1).slice(2)}`;
-  return `FY${year-1}-${String(year).slice(2)}`;
+  // Indian FY: Apr=start, Mar=end
+  // Jan/Feb/Mar belong to the FY that started the previous April
+  const q4months = ["Jan","Feb","Mar"];
+  if(q4months.includes(month)) return `FY${year-1}-${String(year).slice(2)}`;
+  return `FY${year}-${String(year+1).slice(2)}`;
 }
 
 // ── VIEW 1: Monthly LY vs TY ──────────────────────────────────
@@ -763,8 +769,11 @@ function renderTrendMonthly() {
 
   // FY pills — detect available FYs
   const allRows = Object.values(hist).flat();
-  const fys = [...new Set(allRows.map(r=>r.fy).filter(Boolean))].sort();
-  if(!fys.length) fys.push("FY2025-26","FY2024-25");
+  // Exclude FY2023-24 — show only last 2 FYs
+  const fys = [...new Set(allRows.map(r=>r.fy).filter(Boolean))]
+    .filter(fy=>fy!=="FY2023-24")
+    .sort();
+  if(!fys.length) fys.push("FY2026-27","FY2025-26");
   if(!STATE.curFY || !fys.includes(STATE.curFY)) STATE.curFY = fys[fys.length-1];
   const prevFY = fys[fys.indexOf(STATE.curFY)-1] || null;
 
@@ -862,10 +871,12 @@ function renderTrendL3M() {
   }).reverse();
   const l3mMonthsLY = l3mMonths; // same month names, different FY
 
-  // Detect current and last FY
+  // Detect current and last FY (exclude FY2023-24)
   const allRows = Object.values(hist).flat();
-  const fys = [...new Set(allRows.map(r=>r.fy).filter(Boolean))].sort();
-  const curFY = fys[fys.length-1] || "FY2025-26";
+  const fys = [...new Set(allRows.map(r=>r.fy).filter(Boolean))]
+    .filter(fy=>fy!=="FY2023-24")
+    .sort();
+  const curFY = fys[fys.length-1] || "FY2026-27";
   const prevFY = fys[fys.indexOf(curFY)-1] || null;
 
   // Team L3M totals
@@ -957,17 +968,31 @@ function renderTrendWeekly() {
   const curFY = getFYFromMonth(curMonthName, curYear);
 
   // Get all weekly rows for current month
-  const weeklyRows = (id) => getHistData(id, r=>
+  const weeklyRows = (id) => {
+    const wRows = getHistData(id, r=>
+      r.month === curMonthName &&
+      r.fy === curFY &&
+      r.weekLabel !== "Monthly"
+    );
+    return wRows; // returns empty if no weekly data entered yet
+  };
+  // Also get monthly total for current month (used when no weekly rows)
+  const monthlyRow = (id) => getHistData(id, r=>
     r.month === curMonthName &&
     r.fy === curFY &&
-    r.weekLabel !== "Monthly"
-  );
+    r.weekLabel === "Monthly"
+  )[0] || null;
 
-  // Team MTD totals
+  // Team MTD totals — use weekly rows if available, else monthly row
   let mtdTotal=0, tgt=0;
   entities.forEach(ent=>{
-    const rows = weeklyRows(ent.id);
-    mtdTotal += rows.reduce((a,r)=>a+(r.achieved||0),0);
+    const wRows = weeklyRows(ent.id);
+    if(wRows.length) {
+      mtdTotal += wRows.reduce((a,r)=>a+(r.achieved||0),0);
+    } else {
+      const mRow = monthlyRow(ent.id);
+      if(mRow) mtdTotal += mRow.achieved||0;
+    }
     tgt += STATE.trendEntView==="ss"
       ? (MASTER[rsmName]?.ss.find(s=>s.id===ent.id)?.secTgt||0)
       : (MASTER[rsmName]?.dbs.find(d=>d.id===ent.id)?.priTgt||0);
@@ -1016,12 +1041,17 @@ function renderTrendWeekly() {
 
   const entCards = entities.map(ent=>{
     const isOpen = STATE.expanded[ent.id]||false;
-    const rows = weeklyRows(ent.id);
+    const wRows = weeklyRows(ent.id);
+    const mRow  = monthlyRow(ent.id);
     const entTgt = STATE.trendEntView==="ss"
       ? (MASTER[rsmName]?.ss.find(s=>s.id===ent.id)?.secTgt||0)
       : (MASTER[rsmName]?.dbs.find(d=>d.id===ent.id)?.priTgt||0);
-    const mtd = rows.reduce((a,r)=>a+(r.achieved||0),0);
-    const mtdP = entTgt > 0 ? Math.round(mtd/entTgt*100) : 0;
+    // Use weekly rows if available, else use monthly row for MTD
+    const rows = wRows.length ? wRows : (mRow ? [{...mRow, weekLabel:"W1"}] : []);
+    const mtd = wRows.length
+      ? wRows.reduce((a,r)=>a+(r.achieved||0),0)
+      : (mRow ? mRow.achieved||0 : 0);
+    const mtdP = entTgt > 0 ? Math.round(mtd/entTgt*100) : (mRow?.achPct ? Math.round(mRow.achPct*100) : 0);
     const wkValues = ["W1","W2","W3","W4"].map(w=>rows.find(r=>r.weekLabel===w||r.weekLabel.startsWith(w+" ")));
     const maxV = Math.max(...wkValues.map(r=>r?.achieved||0), 1);
 
