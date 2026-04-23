@@ -341,6 +341,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
 // ── CONFIG — replace with your actual Sheet ID ────────────────
 const DEFAULT_SHEET_ID = "YOUR_SHEET_ID_HERE";
 const MONTHS = ["Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar"]; // Indian FY order
+const CAL_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; // JS calendar order
+function curMonthStr(){ return CAL_MONTHS[new Date().getMonth()]; }
+function curYearNum(){ return new Date().getFullYear(); }
 const FY_MONTHS_ORDER = MONTHS; // Apr=Q1 start
 const MONTH_TO_QTR = {Apr:"Q1",May:"Q1",Jun:"Q1",Jul:"Q2",Aug:"Q2",Sep:"Q2",Oct:"Q3",Nov:"Q3",Dec:"Q3",Jan:"Q4",Feb:"Q4",Mar:"Q4"};
 const DAYS   = ["Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -462,8 +465,8 @@ function _seedHistory() {
     {month:"Apr",fy:"FY2026-27"},
   ];
   const now = new Date();
-  const curMonth = MONTHS[now.getMonth()];
-  const curYear = now.getFullYear();
+  const curMonth = curMonthStr();
+  const curYear = curYearNum();
   const q4 = ["Jan","Feb","Mar"];
   const curFY = q4.includes(curMonth)
     ? `FY${curYear-1}-${String(curYear).slice(2)}`
@@ -862,12 +865,12 @@ function renderTrendL3M() {
   const avCls = STATE.trendEntView === "ss" ? "av-b" : "av-g";
   const hist = STATE.history;
   const now = new Date();
-  const curMIdx = now.getMonth();
+  const curMIdx = CAL_MONTHS.indexOf(curMonthStr()); // use calendar index
 
-  // L3M = current month + prev 2 months
+  // L3M = current month + prev 2 months (in calendar order)
   const l3mMonths = [0,1,2].map(i=>{
     const idx = ((curMIdx - i) + 12) % 12;
-    return MONTHS[idx];
+    return CAL_MONTHS[idx];
   }).reverse();
   const l3mMonthsLY = l3mMonths; // same month names, different FY
 
@@ -963,8 +966,8 @@ function renderTrendWeekly() {
   const avCls = STATE.trendEntView === "ss" ? "av-b" : "av-g";
   const hist = STATE.history;
   const now = new Date();
-  const curMonthName = MONTHS[now.getMonth()];
-  const curYear = now.getFullYear();
+  const curMonthName = curMonthStr();
+  const curYear = curYearNum();
   const curFY = getFYFromMonth(curMonthName, curYear);
 
   // Get all weekly rows for current month
