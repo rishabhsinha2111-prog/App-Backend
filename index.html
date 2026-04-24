@@ -942,8 +942,6 @@ function renderTrendL3M() {
       if(r) lyTotal += r.achieved||0;
     });
   });
-  const tyAvgPct = tyPcts.length ? Math.round(tyPcts.reduce((a,b)=>a+b,0)/tyPcts.length*100) : 0;
-  const lyAvgPct = lyPcts.length ? Math.round(lyPcts.reduce((a,b)=>a+b,0)/lyPcts.length*100) : 0;
   const growth = lyTotal > 0 ? Math.round((tyTotal-lyTotal)/lyTotal*100) : 0;
   const growthColor = growth >= 0 ? "#a6e3a1" : "#ff6b6b";
 
