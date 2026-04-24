@@ -419,22 +419,43 @@ function startApp() {
     $("mgr-section").style.display = "none";
   }
 
-  renderHome();
   renderTracker();
-  renderTrends();
   renderPJP();
-  if(navigator.onLine) loadHistoryFromSheet();
+  if(navigator.onLine) {
+    // Show loading state while fetching Sheet
+    $("sync-status").textContent = "Loading data...";
+    loadHistoryFromSheet().then(()=>{
+      renderHome();
+      renderTrends();
+    });
+  } else {
+    // Offline — use last cached data
+    loadLocalDataOffline();
+    renderHome();
+    renderTrends();
+    $("sync-status").textContent = "Offline — showing last synced data";
+    setTimeout(()=>$("sync-status").textContent="", 4000);
+  }
 }
 
 // ── LOCAL DATA ────────────────────────────────────────────────
 function loadLocalData() {
-  const key = "history_" + STATE.user.name;
-  const stored = localStorage.getItem(key);
-  STATE.history = stored ? JSON.parse(stored) : _seedHistory();
+  // History always comes from Sheet — localStorage is offline fallback only
+  // Never use seed data as it causes inconsistency across devices
+  STATE.history = {};  // start empty — Sheet fetch will populate this
 
   const pKey = "pjpExec_" + STATE.user.name;
   const pStored = localStorage.getItem(pKey);
   STATE.pjpExec = pStored ? JSON.parse(pStored) : _seedPJP();
+}
+
+function loadLocalDataOffline() {
+  // Called only when Sheet is unreachable — use last cached data
+  const key = "history_" + STATE.user.name;
+  const stored = localStorage.getItem(key);
+  if(stored) {
+    try { STATE.history = JSON.parse(stored); } catch(e) { STATE.history = {}; }
+  }
 }
 
 function saveLocalData() {
@@ -1310,11 +1331,13 @@ function parseCSV(text) {
   return rows;
 }
 
-async function loadHistoryFromSheet() {
+async function loadHistoryFromSheet() { // returns Promise — always await or .then()
   const sheetId = STATE.sheetId;
   if(!sheetId || sheetId==="YOUR_SHEET_ID_HERE") return;
   try {
-    $("sync-status").textContent = "Loading history...";
+    $("sync-status").textContent = "Loading your data from Sheet...";
+    $("hs-sec").textContent = "…";
+    $("hs-pri").textContent = "…";
     // Try public read first (no OAuth needed if Sheet is shared as Anyone can view)
     // Uses the export-as-csv endpoint — no API key required
     const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=5_History`;
@@ -1393,11 +1416,18 @@ async function loadHistoryFromSheet() {
       console.warn("No entities matched. Check RSM name in Sheet matches data.js exactly.");
     }
     setTimeout(()=>$("sync-status").textContent="", 5000);
-    renderHome(); renderTrends();
+    // renderHome/renderTrends called by startApp after this promise resolves
   } catch(e){
     console.error("Sheet read error:", e);
-    $("sync-status").textContent = "Error reading Sheet — check console";
+    // Fall back to last cached data so app is usable offline
+    loadLocalDataOffline();
+    if(Object.keys(STATE.history).length > 0){
+      $("sync-status").textContent = "Offline — showing cached data";
+    } else {
+      $("sync-status").textContent = "No data — check connection";
+    }
     setTimeout(()=>$("sync-status").textContent="", 5000);
+    // renderHome/renderTrends called by startApp after this promise resolves
   }
 }
 
