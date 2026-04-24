@@ -902,36 +902,45 @@ function renderTrendL3M() {
   const avCls = STATE.trendEntView === "ss" ? "av-b" : "av-g";
   const hist = STATE.history;
   const now = new Date();
-  const curMIdx = CAL_MONTHS.indexOf(curMonthStr()); // use calendar index
+  const curMIdx = CAL_MONTHS.indexOf(curMonthStr());
 
   // L3M = last 3 COMPLETED months (exclude current month)
   const l3mMonths = [1,2,3].map(i=>{
     const idx = ((curMIdx - i) + 12) % 12;
     return CAL_MONTHS[idx];
   }).reverse();
-  const l3mMonthsLY = l3mMonths; // same month names, different FY
 
-  // Detect current and last FY (exclude FY2023-24)
+  // For each L3M month, compute what FY it belongs to (Indian FY)
+  // e.g. Jan 2026 → FY2025-26, Apr 2025 → FY2025-26, Apr 2026 → FY2026-27
+  const yr = curYearNum();
+  function monthFY(month, yearOffset) {
+    const q4 = ["Jan","Feb","Mar"];
+    const y = yr + yearOffset;
+    return q4.includes(month) ? `FY${y-1}-${String(y).slice(2)}` : `FY${y}-${String(y+1).slice(2)}`;
+  }
+  // TY = months from past 3 completed months in current calendar year context
+  // LY = same months but one year ago
+  const tyMonthFYs = l3mMonths.map(m => ({month:m, fy:monthFY(m, 0)}));
+  const lyMonthFYs = l3mMonths.map(m => ({month:m, fy:monthFY(m, -1)}));
+
+  // Detect all available FYs
   const allRows = Object.values(hist).flat();
   const fys = [...new Set(allRows.map(r=>r.fy).filter(Boolean))]
-    .filter(fy=>fy!=="FY2023-24")
-    .sort();
-  const curFY = fys[fys.length-1] || "FY2026-27";
+    .filter(fy=>fy!=="FY2023-24").sort();
+  const curFY  = fys[fys.length-1] || "FY2026-27";
   const prevFY = fys[fys.indexOf(curFY)-1] || null;
 
-  // Team L3M totals
-  let tyTotal=0, lyTotal=0, tyPcts=[], lyPcts=[];
+  // Team L3M totals — match each month to its correct FY
+  let tyTotal=0, lyTotal=0;
   entities.forEach(ent=>{
-    const tyRowsH = getHistData(ent.id, r=>
-      l3mMonths.includes(r.month) && r.weekLabel==="Monthly" &&
-      [curFY, ...fys.slice(-2)].filter(Boolean).includes(r.fy)
-    );
-    const lyRowsH = prevFY ? getHistData(ent.id, r=>r.fy===prevFY && l3mMonthsLY.includes(r.month) && r.weekLabel==="Monthly") : [];
-    tyTotal += tyRowsH.reduce((a,r)=>a+(r.achieved||0),0);
-    lyTotal += lyRowsH.reduce((a,r)=>a+(r.achieved||0),0);
-    const tyA = tyRows.length ? tyRows.reduce((a,r)=>a+(r.achPct||0),0)/tyRows.length : 0;
-    const lyA = lyRows.length ? lyRows.reduce((a,r)=>a+(r.achPct||0),0)/lyRows.length : 0;
-    if(tyA) tyPcts.push(tyA); if(lyA) lyPcts.push(lyA);
+    tyMonthFYs.forEach(({month, fy})=>{
+      const r = (hist[ent.id]||[]).find(h=>h.month===month && h.fy===fy && h.weekLabel==="Monthly");
+      if(r) tyTotal += r.achieved||0;
+    });
+    lyMonthFYs.forEach(({month, fy})=>{
+      const r = (hist[ent.id]||[]).find(h=>h.month===month && h.fy===fy && h.weekLabel==="Monthly");
+      if(r) lyTotal += r.achieved||0;
+    });
   });
   const tyAvgPct = tyPcts.length ? Math.round(tyPcts.reduce((a,b)=>a+b,0)/tyPcts.length*100) : 0;
   const lyAvgPct = lyPcts.length ? Math.round(lyPcts.reduce((a,b)=>a+b,0)/lyPcts.length*100) : 0;
@@ -961,21 +970,13 @@ function renderTrendL3M() {
 
   const entCards = entities.map(ent=>{
     const isOpen = STATE.expanded[ent.id]||false;
-    // Each month may be in a different FY (e.g. Feb/Mar 2026 = FY2025-26, Apr 2026 = FY2026-27)
-    const tyRows = getHistData(ent.id, r=>
-      l3mMonths.includes(r.month) && r.weekLabel==="Monthly" &&
-      (r.fy===curFY || r.fy===prevFY || r.fy===fys[fys.length-1] || r.fy===fys[fys.length-2])
-    ).filter(r=>{
-      // Keep only rows from the last 3 calendar months (not last year's same months)
-      const now2=new Date(); const cutoff=new Date(now2.getFullYear(), now2.getMonth()-3, 1);
-      // simple check: if month is in l3mMonths and fy is recent (not LY), keep
-      const recentFYs=[curFY, fys[fys.length-1], fys[fys.length-2]].filter(Boolean);
-      return recentFYs.includes(r.fy);
-    });
-    const lyRows = getHistData(ent.id, r=>
-      l3mMonthsLY.includes(r.month) && r.weekLabel==="Monthly" &&
-      (prevFY ? r.fy===prevFY : false)
-    );
+    // Match each month to its exact FY — handles cross-FY L3M windows
+    const tyRows = tyMonthFYs.map(({month,fy})=>
+      (hist[ent.id]||[]).find(h=>h.month===month && h.fy===fy && h.weekLabel==="Monthly")
+    ).filter(Boolean);
+    const lyRows = lyMonthFYs.map(({month,fy})=>
+      (hist[ent.id]||[]).find(h=>h.month===month && h.fy===fy && h.weekLabel==="Monthly")
+    ).filter(Boolean);
     const tyVal = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
     const lyVal = lyRows.reduce((a,r)=>a+(r.achieved||0),0);
     const diff = lyVal > 0 ? Math.round((tyVal-lyVal)/lyVal*100) : null;
@@ -986,10 +987,9 @@ function renderTrendL3M() {
     const l3mMax = Math.max(tyVal, lyVal, 1);
     const tyW = Math.round((tyVal/l3mMax)*100);
     const lyW = Math.round((lyVal/l3mMax)*100);
-    const monthBreakdown = l3mMonths.map(m=>{
-      const tr = tyRows.find(r=>r.month===m);
-      return tr ? `<span style="font-size:10px;color:var(--text2)">${m}: <b style="color:var(--text)">${fmt(tr.achieved||0)}</b></span>` : "";
-    }).filter(Boolean).join(" · ");
+    const monthBreakdown = tyRows.map(r=>
+      `<span style="font-size:10px;color:var(--text2)">${r.month}: <b style="color:var(--text)">${fmt(r.achieved||0)}</b></span>`
+    ).join(" · ");
 
     return `<div class="ent">
       <div class="ent-hdr" onclick="toggleEnt('${ent.id}')">
