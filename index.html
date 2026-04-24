@@ -223,43 +223,61 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
     <div id="body">
       <!-- HOME -->
       <div id="scr-home" class="scr active">
-        <div class="hero">
-          <div class="hero-greeting" id="h-greeting">Good morning</div>
-          <div class="hero-name" id="h-name">—</div>
-          <div class="hero-zone" id="h-zone">—</div>
-          <div class="hg">
-            <div class="hgs"><div class="hgv" id="hs-sec">—</div><div class="hgl">Sec avg %</div></div>
-            <div class="hgs"><div class="hgv" id="hs-pri">—</div><div class="hgl">Pri avg %</div></div>
-            <div class="hgs"><div class="hgv" id="hs-exec">—</div><div class="hgl">PJP done</div></div>
+        <!-- RSM view -->
+        <div id="rsm-home">
+          <!-- Score card -->
+          <div id="home-score-card" style="margin-bottom:10px"></div>
+          <!-- KPI grid -->
+          <div id="home-kpi-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"></div>
+          <!-- Priority tasks -->
+          <div class="slbl">Today's priority tasks</div>
+          <div id="home-tasks" class="card" style="padding:0"></div>
+          <!-- Quick actions -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;margin-bottom:10px">
+            <button class="btn btn-brand" onclick="goScr('tracker')">Enter data</button>
+            <button class="btn btn-out" onclick="goScr('pjp')">View PJP</button>
+            <button class="btn btn-out" style="grid-column:span 2" onclick="goScr('trends')">Trends &amp; history</button>
           </div>
         </div>
-        <div class="slbl">Alerts this week</div>
-        <div class="card" id="home-alerts" style="padding:0"></div>
-        <div class="slbl">Quick actions</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-          <button class="btn btn-brand" onclick="goScr('tracker')">Enter data</button>
-          <button class="btn btn-out" onclick="goScr('pjp')">View PJP</button>
-          <button class="btn btn-out" style="grid-column:span 2" onclick="goScr('trends')">Trends &amp; history</button>
-        </div>
-        <!-- Manager only section -->
+        <!-- Manager view -->
         <div id="mgr-section" style="display:none">
-          <div class="slbl">Manager overview</div>
+          <div id="mgr-summary-card" style="margin-bottom:10px"></div>
+          <div class="slbl">RSM rankings — <span id="mgr-month-lbl">this month</span></div>
           <div id="mgr-rsm-list"></div>
         </div>
       </div>
 
       <!-- TRACKER -->
       <div id="scr-tracker" class="scr">
-        <div class="slbl" style="margin-top:0">Week label</div>
-        <div class="field"><input type="text" id="trk-week" placeholder="e.g. W2 Apr 2025"></div>
-        <div class="slbl">SS — secondary achievement</div>
+        <!-- Daily date header -->
+        <div style="background:var(--brand2);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:11px;color:rgba(255,255,255,.5);margin-bottom:2px">Today's entry</div>
+            <div style="font-size:16px;font-weight:700;color:#fff" id="trk-date-lbl">—</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.4)" id="trk-week-lbl">—</div>
+          </div>
+          <div id="trk-saved-badge" style="display:none;background:#D6F0DC;color:#1A6B32;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700">Saved today ✓</div>
+        </div>
+        <!-- Edit different day -->
+        <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px">
+          <div style="font-size:12px;color:var(--text2)">Entering for:</div>
+          <select id="trk-day-select" style="flex:1;font-size:12px" onchange="onDayChange()">
+            <option value="">Today</option>
+          </select>
+        </div>
+        <div class="slbl" style="margin-top:0">SS — secondary billing</div>
         <div id="trk-ss-list"></div>
         <div class="slbl">DB — primary billing</div>
         <div id="trk-db-list"></div>
-        <div class="slbl">Vacant areas</div>
-        <div id="trk-vac-list"></div>
-        <button class="btn btn-brand" style="margin-top:14px" onclick="saveTracker()">Save &amp; archive to history</button>
+        <div class="slbl">Focus SKU (cases billed today)</div>
+        <div class="card" style="margin-bottom:8px">
+          <div id="trk-sku-list"></div>
+        </div>
+        <button class="btn btn-brand" style="margin-top:4px" onclick="saveTracker()">Save today's entry</button>
         <div id="trk-msg" style="text-align:center;font-size:12px;color:var(--text2);margin-top:8px;min-height:18px"></div>
+        <!-- Weekly summary -->
+        <div class="slbl">This week so far</div>
+        <div id="trk-week-summary" class="card" style="padding:10px 13px"></div>
       </div>
 
       <!-- TRENDS -->
@@ -447,6 +465,16 @@ function loadLocalData() {
   const pKey = "pjpExec_" + STATE.user.name;
   const pStored = localStorage.getItem(pKey);
   STATE.pjpExec = pStored ? JSON.parse(pStored) : _seedPJP();
+
+  // Load SKU history
+  const skuStored = localStorage.getItem("skuHistory_"+STATE.user.name);
+  if(!STATE.skuHistory) STATE.skuHistory = {};
+  STATE.skuHistory[STATE.user.name] = skuStored ? JSON.parse(skuStored) : {};
+
+  // Load daily entries
+  const dailyStored = localStorage.getItem("dailyEntries_"+STATE.user.name);
+  if(!STATE.dailyEntries) STATE.dailyEntries = {};
+  STATE.dailyEntries[STATE.user.name] = dailyStored ? JSON.parse(dailyStored) : {};
 }
 
 function loadLocalDataOffline() {
@@ -555,159 +583,526 @@ function goScr(id) {
   if(id==="tracker") renderTracker();
 }
 
+// ── SCORING ENGINE ───────────────────────────────────────────
+function calcRSMScore(rsmName, hist) {
+  const master = MASTER[rsmName];
+  if(!master) return {score:0, salesPts:0, yoyPts:0, vacantPts:0, skuPts:0};
+  const curMonth = curMonthStr();
+  const q4 = ["Jan","Feb","Mar"];
+  const yr = curYearNum();
+  const curFY = q4.includes(curMonth) ? `FY${yr-1}-${String(yr).slice(2)}` : `FY${yr}-${String(yr+1).slice(2)}`;
+  const prevFY = q4.includes(curMonth) ? `FY${yr-2}-${String(yr-1).slice(2)}` : `FY${yr-1}-${String(yr).slice(2)}`;
+
+  // ── Component 1: Sales vs Target (20pts) ─────────────────
+  // Average of DB primary ach% and SS secondary ach%
+  let priSum=0, priCnt=0, secSum=0, secCnt=0;
+  master.dbs.forEach(db=>{
+    const row=(hist[db.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
+    if(!row||!db.priTgt) return;
+    priSum += Math.min((row.achieved||0)/db.priTgt, 1.5); priCnt++;
+  });
+  master.ss.forEach(ss=>{
+    const row=(hist[ss.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
+    if(!row||!ss.secTgt) return;
+    secSum += Math.min((row.achieved||0)/ss.secTgt, 1.5); secCnt++;
+  });
+  const priAvg = priCnt ? priSum/priCnt : 0;
+  const secAvg = secCnt ? secSum/secCnt : 0;
+  const salesRatio = (priAvg + secAvg) / 2;
+  const salesPts = Math.round(Math.min(salesRatio, 1) * 20);
+
+  // ── Component 2: YoY Growth (20pts) ──────────────────────
+  let tyAch=0, lyAch=0;
+  master.ss.forEach(ss=>{
+    const ty=(hist[ss.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
+    const ly=(hist[ss.id]||[]).find(h=>h.month===curMonth&&h.fy===prevFY&&h.weekLabel==="Monthly");
+    if(ty) tyAch += ty.achieved||0;
+    if(ly) lyAch += ly.achieved||0;
+  });
+  const yoyGrowth = lyAch > 0 ? (tyAch-lyAch)/lyAch : 0;
+  // Full 20pts for ≥0% growth, scales to 0 at -50% decline
+  const yoyPts = Math.round(Math.min(Math.max((yoyGrowth + 0.5) / 0.5, 0), 1) * 20);
+
+  // ── Component 3: Vacant Coverage (30pts) ─────────────────
+  const vacantDBs = master.dbs.filter(d=>d.area==="Vacant");
+  let vacantBilled = 0;
+  vacantDBs.forEach(db=>{
+    const row=(hist[db.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
+    if(row && (row.achieved||0)>0) vacantBilled++;
+  });
+  const vacantPts = vacantDBs.length > 0
+    ? Math.round((vacantBilled/vacantDBs.length)*30)
+    : 30; // no vacant = full score
+
+  // ── Component 4: Focus SKU (30pts) ───────────────────────
+  // 7.5pts per SKU — all 4 must have billing
+  const skuData = STATE.skuHistory?.[rsmName]?.[`${curMonth}_${curFY}`] || null;
+  const skuTgt = (typeof FOCUS_SKU_TARGETS !== "undefined") ? FOCUS_SKU_TARGETS[rsmName] : null;
+  let skuPts = 0;
+  if(skuData && skuTgt) {
+    FOCUS_SKU_KEYS.forEach(key=>{
+      const ach = skuData[key]||0;
+      const tgt = skuTgt[key]||0;
+      if(tgt > 0 && ach > 0) skuPts += Math.round(Math.min(ach/tgt, 1) * 7.5);
+    });
+  }
+
+  const score = salesPts + yoyPts + vacantPts + skuPts;
+  return {score, salesPts, yoyPts, vacantPts, skuPts, salesRatio, yoyGrowth, vacantDBs, vacantBilled, priAvg, secAvg};
+}
+
+function scoreColor(s) {
+  return s>=80?"#1A6B32":s>=60?"#856404":"#8B1A1A";
+}
+function scoreBg(s) {
+  return s>=80?"#D6F0DC":s>=60?"#FFF3CD":"#FDDCDC";
+}
+function scoreLabel(s) {
+  return s>=80?"On Track":s>=60?"Needs Focus":"Needs Attention";
+}
+
 // ── HOME ──────────────────────────────────────────────────────
 function renderHome() {
   const u = STATE.user;
-  $("h-greeting").textContent = greeting();
-  $("h-name").textContent = u.displayName;
-  $("h-zone").textContent = u.zone;
-
-  if (u.role === "manager") {
-    renderManagerHome();
-    return;
-  }
+  if(u.role==="manager"){ renderManagerHome(); return; }
 
   const master = MASTER[u.name];
-  if (!master) return;
+  if(!master) return;
   const hist = STATE.history;
   const curMonth = curMonthStr();
+  const yr = curYearNum();
   const q4 = ["Jan","Feb","Mar"];
-  const yr  = curYearNum();
-  const curFY_ = q4.includes(curMonth)
-    ? `FY${yr-1}-${String(yr).slice(2)}`
-    : `FY${yr}-${String(yr+1).slice(2)}`;
+  const curFY = q4.includes(curMonth) ? `FY${yr-1}-${String(yr).slice(2)}` : `FY${yr}-${String(yr+1).slice(2)}`;
 
-  // Averages — use achPct if available, else achieved/target
-  let secSum=0, priSum=0, secCnt=0, priCnt=0;
-  master.ss.forEach(ss=>{
-    const rows=(hist[ss.id]||[]).filter(h=>h.month===curMonth && h.fy===curFY_ && h.weekLabel==="Monthly");
-    if(!rows.length) return;
-    const row = rows[0];
-    const p = row.achPct!=null ? row.achPct*100
-              : ss.secTgt>0 ? (row.achieved||0)/ss.secTgt*100 : 0;
-    if(!isNaN(p)){ secSum+=p; secCnt++; }
-  });
-  master.dbs.forEach(db=>{
-    const rows=(hist[db.id]||[]).filter(h=>h.month===curMonth && h.fy===curFY_ && h.weekLabel==="Monthly");
-    if(!rows.length) return;
-    const row = rows[0];
-    const p = row.achPct!=null ? row.achPct*100
-              : db.priTgt>0 ? (row.achieved||0)/db.priTgt*100 : 0;
-    if(!isNaN(p)){ priSum+=p; priCnt++; }
-  });
-  const avgSec = secCnt ? Math.round(secSum/secCnt) : 0;
-  const avgPri = priCnt ? Math.round(priSum/priCnt) : 0;
+  const S = calcRSMScore(u.name, hist);
+  const score = S.score;
 
-  const pjp = (STATE.pjpExec[curMonth]||[]);
-  const done = pjp.filter(v=>v.status==="done").length;
-  const execPct = pjp.length ? Math.round(done/pjp.length*100) : 0;
-
-  $("hs-sec").textContent = avgSec+"%";
-  $("hs-pri").textContent = avgPri+"%";
-  $("hs-exec").textContent = execPct+"%";
-
-  // Alerts
-  const alerts = [];
-  master.ss.forEach(ss=>{
-    const rows=(hist[ss.id]||[]).filter(h=>h.month===curMonth && h.fy===curFY_ && h.weekLabel==="Monthly");
-    if(!rows.length) return;
-    const row=rows[0];
-    const p = row.achPct!=null ? Math.round(row.achPct*100)
-              : ss.secTgt>0 ? Math.round((row.achieved||0)/ss.secTgt*100) : 0;
-    if(!isNaN(p) && p<70) alerts.push({type:"low",name:ss.name,sub:ss.town,pct:p});
-  });
-  master.dbs.filter(d=>d.area==="Vacant").forEach(db=>{
-    alerts.push({type:"vacant",name:db.name,sub:"Vacant area"});
-  });
-
-  const el = $("home-alerts");
-  if(!alerts.length){
-    el.innerHTML=`<div class="alert-item"><div class="alert-dot" style="background:var(--green)"></div><div style="font-size:13px;color:var(--text2)">All targets on track this week</div></div>`;
-  } else {
-    el.innerHTML=alerts.slice(0,4).map(a=>`
-      <div class="alert-item">
-        <div class="alert-dot" style="background:${a.type==="vacant"?"var(--blue)":"var(--red)"}"></div>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:600">${a.name}</div>
-          <div style="font-size:11px;color:var(--text2)">${a.sub}${a.pct!=null?" · "+a.pct+"% secondary":""}</div>
+  // ── Score card ───────────────────────────────────────────
+  $("home-score-card").innerHTML = `
+    <div style="background:var(--brand2);border-radius:var(--r);padding:16px;position:relative;overflow:hidden">
+      <div style="position:absolute;right:-20px;top:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.04)"></div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-bottom:2px">${greeting()}, ${u.displayName.split(" ")[0]}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:12px">${curMonth} ${yr} · ${u.zone}</div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="width:64px;height:64px;border-radius:50%;background:${scoreBg(score)};display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0">
+          <div style="font-size:20px;font-weight:900;color:${scoreColor(score)};line-height:1">${score}</div>
+          <div style="font-size:8px;color:${scoreColor(score)};font-weight:600">/100</div>
         </div>
-        ${a.type==="vacant"?'<span class="b b-b">Vacant</span>':`<span class="b ${pcls(a.pct)}">${a.pct}%</span>`}
-      </div>`).join("");
-  }
+        <div>
+          <div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:3px">${scoreLabel(score)}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.5)">RSM Performance Score</div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <div style="height:3px;width:${S.salesPts/20*40}px;background:#60a5fa;border-radius:2px"></div>
+            <div style="height:3px;width:${S.yoyPts/20*40}px;background:#a78bfa;border-radius:2px"></div>
+            <div style="height:3px;width:${S.vacantPts/30*60}px;background:#34d399;border-radius:2px"></div>
+            <div style="height:3px;width:${S.skuPts/30*60}px;background:#fbbf24;border-radius:2px"></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  // ── KPI grid (4 cards) ───────────────────────────────────
+  const priPct  = Math.round(S.priAvg*100);
+  const secPct  = Math.round(S.secAvg*100);
+  const yoyPct  = Math.round(S.yoyGrowth*100);
+  const vacCov  = S.vacantDBs.length > 0 ? Math.round(S.vacantBilled/S.vacantDBs.length*100) : 100;
+
+  $("home-kpi-grid").innerHTML = `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-left:3px solid #60a5fa">
+      <div style="font-size:10px;color:var(--text2);margin-bottom:4px">Sales vs Target</div>
+      <div style="font-size:22px;font-weight:800;color:${scoreColor(S.salesPts/20*100)}">${Math.round((priPct+secPct)/2)}%</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:2px">Pri ${priPct}% · Sec ${secPct}%</div>
+      <div style="font-size:10px;font-weight:600;color:#60a5fa;margin-top:4px">${S.salesPts}/20 pts</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-left:3px solid #a78bfa">
+      <div style="font-size:10px;color:var(--text2);margin-bottom:4px">YoY Growth</div>
+      <div style="font-size:22px;font-weight:800;color:${yoyPct>=0?"var(--green)":"var(--red)"}">${yoyPct>=0?"+":""}${yoyPct}%</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:2px">vs ${curMonth} last year</div>
+      <div style="font-size:10px;font-weight:600;color:#a78bfa;margin-top:4px">${S.yoyPts}/20 pts</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-left:3px solid #34d399">
+      <div style="font-size:10px;color:var(--text2);margin-bottom:4px">Vacant Coverage</div>
+      <div style="font-size:22px;font-weight:800;color:${scoreColor(vacCov)}">${S.vacantBilled}/${S.vacantDBs.length}</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:2px">${vacCov}% areas billed</div>
+      <div style="font-size:10px;font-weight:600;color:#34d399;margin-top:4px">${S.vacantPts}/30 pts</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-left:3px solid #fbbf24">
+      <div style="font-size:10px;color:var(--text2);margin-bottom:4px">Focus SKU</div>
+      <div style="font-size:22px;font-weight:800;color:${scoreColor(S.skuPts/30*100)}">${S.skuPts}<span style="font-size:13px;font-weight:600">/30</span></div>
+      <div style="font-size:10px;color:var(--text2);margin-top:2px">Enter in Tracker</div>
+      <div style="font-size:10px;font-weight:600;color:#fbbf24;margin-top:4px">${S.skuPts}/30 pts</div>
+    </div>`;
+
+  // ── Priority tasks ────────────────────────────────────────
+  const tasks = [];
+  // PJP visits today
+  const today = ["Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()-1] || "Mon";
+  const todayVisits = (STATE.pjpExec[curMonth]||[]).filter(v=>v.day===today && v.status==="pending");
+  todayVisits.slice(0,3).forEach(v=>tasks.push({
+    icon:"📍", label:v.db, sub:`Visit today · ${v.day}`, color:"var(--blue)"
+  }));
+  // Under-performing DBs (<70%)
+  master.dbs.forEach(db=>{
+    const row=(hist[db.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
+    if(!row||!db.priTgt) return;
+    const p = Math.round((row.achieved||0)/db.priTgt*100);
+    if(p<70) tasks.push({icon:"⚠️", label:db.name, sub:`Pri ${p}% — below 70%`, color:"var(--red)"});
+  });
+
+  $("home-tasks").innerHTML = tasks.length
+    ? tasks.slice(0,5).map(t=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 13px;border-bottom:1px solid var(--border)" class="task-row">
+          <div style="font-size:16px">${t.icon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.label}</div>
+            <div style="font-size:11px;color:var(--text2)">${t.sub}</div>
+          </div>
+        </div>`).join("")
+    : `<div style="padding:12px 13px;font-size:13px;color:var(--text2)">✓ All clear — no urgent tasks</div>`;
 }
 
 function renderManagerHome() {
-  const u = STATE.user;
-  $("hs-sec").textContent = "—";
-  $("hs-pri").textContent = "—";
-  $("hs-exec").textContent = "—";
-  $("home-alerts").innerHTML = `<div class="alert-item"><div style="font-size:13px;color:var(--text2);padding:4px 0">Manager view — see all RSM performance below</div></div>`;
+  const curMonth = curMonthStr();
+  const yr = curYearNum();
+  const q4 = ["Jan","Feb","Mar"];
+  const curFY = q4.includes(curMonth) ? `FY${yr-1}-${String(yr).slice(2)}` : `FY${yr}-${String(yr+1).slice(2)}`;
 
-  const el = $("mgr-rsm-list");
-  el.innerHTML = Object.entries(MASTER).map(([rsmName, master])=>{
-    const dispName = rsmName.split(" ").map(w=>w[0].toUpperCase()+w.slice(1)).join(" ");
-    const user = USERS[rsmName];
-    return `<div class="card" style="margin-bottom:8px">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="av av-b">${dispName.split(" ").map(w=>w[0]).join("").slice(0,2)}</div>
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:14px">${dispName}</div>
-          <div style="font-size:11px;color:var(--text2)">${user?.zone||"—"} · ${master.dbs.length} DBs · ${master.ss.length} SS</div>
+  // Score all RSMs
+  const rsmScores = Object.keys(MASTER)
+    .filter(name=>name!=="rishabh sinha")
+    .map(name=>{
+      const S = calcRSMScore(name, STATE.history);
+      const dispName = name.split(" ").map(w=>w[0].toUpperCase()+w.slice(1)).join(" ");
+      const zone = USERS[name]?.zone||"—";
+      return {...S, name, dispName, zone};
+    })
+    .sort((a,b)=>b.score-a.score);
+
+  // Team summary
+  const teamAvg = rsmScores.length ? Math.round(rsmScores.reduce((a,r)=>a+r.score,0)/rsmScores.length) : 0;
+  const needsAttn = rsmScores.filter(r=>r.score<60).length;
+
+  $("mgr-summary-card").innerHTML = `
+    <div style="background:var(--brand2);border-radius:var(--r);padding:14px">
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-bottom:8px">Team overview — ${curMonth} ${yr}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div style="background:rgba(255,255,255,.07);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:20px;font-weight:800;color:#fff">${teamAvg}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.4)">Avg score</div>
         </div>
-        <span class="b b-gray">${master.dbs.filter(d=>d.mustVisit).length} mandatory</span>
+        <div style="background:rgba(255,255,255,.07);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:20px;font-weight:800;color:#a6e3a1">${rsmScores.filter(r=>r.score>=80).length}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.4)">On track</div>
+        </div>
+        <div style="background:rgba(255,255,255,.07);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:20px;font-weight:800;color:#ff6b6b">${needsAttn}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.4)">Need attention</div>
+        </div>
       </div>
     </div>`;
-  }).join("");
+
+  $("mgr-month-lbl").textContent = `${curMonth} ${yr}`;
+  $("mgr-rsm-list").innerHTML = rsmScores.map((r,i)=>`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;cursor:pointer"
+         onclick="viewRSMDetail('${r.name}')">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:16px;font-weight:800;color:var(--text2);width:24px">#${i+1}</div>
+        <div class="av av-b">${r.dispName.split(" ").map(w=>w[0]).join("").slice(0,2)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px">${r.dispName}</div>
+          <div style="font-size:11px;color:var(--text2)">${r.zone}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:900;color:${scoreColor(r.score)}">${r.score}</div>
+          <div style="font-size:9px;color:var(--text2)">/100</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <div style="flex:1;background:var(--bg);border-radius:4px;padding:4px 6px;text-align:center">
+          <div style="font-size:10px;font-weight:700;color:#60a5fa">${r.salesPts}/20</div>
+          <div style="font-size:8px;color:var(--text2)">Sales</div>
+        </div>
+        <div style="flex:1;background:var(--bg);border-radius:4px;padding:4px 6px;text-align:center">
+          <div style="font-size:10px;font-weight:700;color:#a78bfa">${r.yoyPts}/20</div>
+          <div style="font-size:8px;color:var(--text2)">YoY</div>
+        </div>
+        <div style="flex:1;background:var(--bg);border-radius:4px;padding:4px 6px;text-align:center">
+          <div style="font-size:10px;font-weight:700;color:#34d399">${r.vacantPts}/30</div>
+          <div style="font-size:8px;color:var(--text2)">Vacant</div>
+        </div>
+        <div style="flex:1;background:var(--bg);border-radius:4px;padding:4px 6px;text-align:center">
+          <div style="font-size:10px;font-weight:700;color:#fbbf24">${r.skuPts}/30</div>
+          <div style="font-size:8px;color:var(--text2)">SKU</div>
+        </div>
+      </div>
+    </div>`).join("");
+}
+
+function viewRSMDetail(rsmName) {
+  // Switch to RSM view temporarily for manager
+  const prev = STATE.user;
+  STATE.viewingRSM = rsmName;
+  // For now just show score in an alert — full drill-down can be built later
+  const S = calcRSMScore(rsmName, STATE.history);
+  const dispName = rsmName.split(" ").map(w=>w[0].toUpperCase()+w.slice(1)).join(" ");
+  alert(`${dispName}\nScore: ${S.score}/100\nSales: ${S.salesPts}/20 · YoY: ${S.yoyPts}/20 · Vacant: ${S.vacantPts}/30 · SKU: ${S.skuPts}/30`);
 }
 
 // ── TRACKER ───────────────────────────────────────────────────
+// ── DAILY TRACKER HELPERS ────────────────────────────────────
+const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+function _todayKey() {
+  const now = new Date();
+  const day = DAY_NAMES[now.getDay()];
+  const dd   = String(now.getDate()).padStart(2,"0");
+  const mm   = String(now.getMonth()+1).padStart(2,"0");
+  const yr   = now.getFullYear();
+  return `${yr}-${mm}-${dd}`; // e.g. "2026-04-24"
+}
+
+function _dayLabel(dateKey) {
+  const [y,m,d] = dateKey.split("-").map(Number);
+  const dt = new Date(y,m-1,d);
+  const day = DAY_NAMES[dt.getDay()];
+  const mon = CAL_MONTHS[m-1];
+  return `${day}, ${d} ${mon} ${y}`;
+}
+
+function _weekLabel(dateKey) {
+  const [y,m,d] = dateKey.split("-").map(Number);
+  const weekNum = Math.ceil(d/7);
+  const mon = CAL_MONTHS[m-1];
+  return `W${weekNum} ${mon} ${y}`;
+}
+
+function _monthFromKey(dateKey) {
+  const [y,m] = dateKey.split("-").map(Number);
+  return CAL_MONTHS[m-1];
+}
+
+function _fyFromKey(dateKey) {
+  const [y,m] = dateKey.split("-").map(Number);
+  const mon = CAL_MONTHS[m-1];
+  return getFYFromMonth(mon, y);
+}
+
+function _getOrInitDailyEntry(rsmName, dateKey) {
+  if(!STATE.dailyEntries) STATE.dailyEntries = {};
+  if(!STATE.dailyEntries[rsmName]) STATE.dailyEntries[rsmName] = {};
+  if(!STATE.dailyEntries[rsmName][dateKey]) {
+    STATE.dailyEntries[rsmName][dateKey] = {ss:{}, dbs:{}, sku:{}};
+  }
+  return STATE.dailyEntries[rsmName][dateKey];
+}
+
+function _saveDailyEntries() {
+  localStorage.setItem("dailyEntries_"+STATE.user.name,
+    JSON.stringify(STATE.dailyEntries?.[STATE.user.name]||{}));
+}
+
+function _loadDailyEntries() {
+  const stored = localStorage.getItem("dailyEntries_"+STATE.user.name);
+  if(!STATE.dailyEntries) STATE.dailyEntries = {};
+  STATE.dailyEntries[STATE.user.name] = stored ? JSON.parse(stored) : {};
+}
+
+function _getWeeklyTotal(rsmName, entityId, type, weekLabel) {
+  // Sum all daily entries for this entity in this week
+  const entries = STATE.dailyEntries?.[rsmName] || {};
+  let total = 0;
+  Object.entries(entries).forEach(([dateKey, entry])=>{
+    if(_weekLabel(dateKey) === weekLabel) {
+      const val = type==="ss" ? (entry.ss?.[entityId]||0) : (entry.dbs?.[entityId]||0);
+      total += val;
+    }
+  });
+  return total;
+}
+
+function _getWeeklySKUTotal(rsmName, skuKey, weekLabel) {
+  const entries = STATE.dailyEntries?.[rsmName] || {};
+  let total = 0;
+  Object.entries(entries).forEach(([dateKey, entry])=>{
+    if(_weekLabel(dateKey) === weekLabel) total += entry.sku?.[skuKey]||0;
+  });
+  return total;
+}
+
+function onDayChange() {
+  const sel = $("trk-day-select");
+  STATE.trackerDateKey = sel.value || _todayKey();
+  renderTrackerFields();
+}
+
 function renderTracker() {
   const u = STATE.user;
   if(u.role==="manager"){
     $("trk-ss-list").innerHTML=`<div style="color:var(--text2);font-size:13px;padding:12px 0">Managers don't enter tracker data.</div>`;
     $("trk-db-list").innerHTML="";
-    $("trk-vac-list").innerHTML="";
+    $("trk-sku-list").innerHTML="";
+    $("trk-week-summary").innerHTML="";
     return;
   }
+  _loadDailyEntries();
+
+  // Set up day selector — last 6 days
+  const todayKey = _todayKey();
+  if(!STATE.trackerDateKey) STATE.trackerDateKey = todayKey;
+  const sel = $("trk-day-select");
+  sel.innerHTML = "";
+  for(let i=0;i<6;i++){
+    const dt = new Date(); dt.setDate(dt.getDate()-i);
+    const dk = dt.toISOString().slice(0,10);
+    const opt = document.createElement("option");
+    opt.value = dk;
+    opt.textContent = i===0 ? `Today — ${_dayLabel(dk)}` : _dayLabel(dk);
+    if(dk===STATE.trackerDateKey) opt.selected=true;
+    sel.appendChild(opt);
+  }
+
+  renderTrackerFields();
+}
+
+function renderTrackerFields() {
+  const u = STATE.user;
   const master = MASTER[u.name];
   if(!master) return;
 
-  $("trk-ss-list").innerHTML = master.ss.map(ss=>`
-    <div class="card" style="margin-bottom:8px">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+  const dateKey  = STATE.trackerDateKey || _todayKey();
+  const todayKey = _todayKey();
+  const entry    = _getOrInitDailyEntry(u.name, dateKey);
+  const weekLbl  = _weekLabel(dateKey);
+  const isToday  = dateKey === todayKey;
+  const hasEntry = Object.values(entry.dbs||{}).some(v=>v>0) ||
+                   Object.values(entry.ss||{}).some(v=>v>0);
+
+  // Update header
+  $("trk-date-lbl").textContent = _dayLabel(dateKey);
+  $("trk-week-lbl").textContent = weekLbl;
+  const badge = $("trk-saved-badge");
+  if(badge) { badge.style.display = (isToday && hasEntry) ? "block" : "none"; }
+
+  // SS list
+  $("trk-ss-list").innerHTML = master.ss.map(ss=>{
+    const existing = entry.ss?.[ss.id]||0;
+    const weekTotal = _getWeeklyTotal(u.name, ss.id, "ss", weekLbl);
+    const wPct = ss.secTgt>0 ? Math.round(weekTotal/ss.secTgt*100) : 0;
+    return `<div class="card" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
         <div class="av av-b">${ss.name.slice(0,2).toUpperCase()}</div>
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:13px">${ss.name}</div>
-          <div style="font-size:11px;color:var(--text2)">${ss.town} · Target ${fmt(ss.secTgt)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ss.name}</div>
+          <div style="font-size:10px;color:var(--text2)">${ss.town} · Monthly tgt ${fmt(ss.secTgt)}</div>
         </div>
-        <span class="b b-gray" id="ss-pct-${ss.id}">—</span>
+        <span class="b ${pcls(wPct)}" style="font-size:10px">${wPct}% WTD</span>
       </div>
-      <input type="number" id="sec-${ss.id}" placeholder="Secondary achieved (₹)" oninput="livePct('sec','${ss.id}',${ss.secTgt})">
-    </div>`).join("");
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="sec-${ss.id}" placeholder="Today's secondary (₹ lakhs)"
+               value="${existing||""}" style="flex:1"
+               oninput="livePct('sec','${ss.id}',${ss.secTgt})">
+        <span class="b b-gray" id="ss-pct-${ss.id}">${existing>0&&ss.secTgt>0?Math.round(existing/ss.secTgt*100)+"%":"—"}</span>
+      </div>
+      ${weekTotal>0?`<div style="font-size:10px;color:var(--text2);margin-top:5px">Week total: ${fmt(weekTotal)} · ${wPct}% of target</div>`:""}
+    </div>`;
+  }).join("");
 
-  $("trk-db-list").innerHTML = master.dbs.map(db=>`
-    <div class="card" style="margin-bottom:8px">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+  // DB list
+  $("trk-db-list").innerHTML = master.dbs.map(db=>{
+    const existing = entry.dbs?.[db.id]||0;
+    const weekTotal = _getWeeklyTotal(u.name, db.id, "db", weekLbl);
+    const wPct = db.priTgt>0 ? Math.round(weekTotal/db.priTgt*100) : 0;
+    return `<div class="card" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
         <div class="av av-g">${db.name.slice(0,2).toUpperCase()}</div>
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:13px">${db.name}${db.mustVisit?` <span class="b b-a" style="font-size:10px">Must visit</span>`:""}</div>
-          <div style="font-size:11px;color:var(--text2)">Target ${fmt(db.priTgt)} · ${db.area}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            ${db.name}${db.mustVisit?` <span class="b b-a" style="font-size:9px">Must visit</span>`:""}
+            ${db.area==="Vacant"?` <span class="b b-b" style="font-size:9px">Vacant</span>`:""}
+          </div>
+          <div style="font-size:10px;color:var(--text2)">Monthly tgt ${fmt(db.priTgt)}</div>
         </div>
-        <span class="b b-gray" id="db-pct-${db.id}">—</span>
+        <span class="b ${pcls(wPct)}" style="font-size:10px">${wPct}% WTD</span>
       </div>
-      <input type="number" id="pri-${db.id}" placeholder="Primary billed (₹)" oninput="livePct('pri','${db.id}',${db.priTgt})">
-    </div>`).join("");
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="pri-${db.id}" placeholder="Today's primary (₹ lakhs)"
+               value="${existing||""}" style="flex:1"
+               oninput="livePct('pri','${db.id}',${db.priTgt})">
+        <span class="b b-gray" id="db-pct-${db.id}">${existing>0&&db.priTgt>0?Math.round(existing/db.priTgt*100)+"%":"—"}</span>
+      </div>
+      ${weekTotal>0?`<div style="font-size:10px;color:var(--text2);margin-top:5px">Week total: ${fmt(weekTotal)} · ${wPct}% of target</div>`:""}
+    </div>`;
+  }).join("");
 
-  const vac = master.dbs.filter(d=>d.area==="Vacant");
-  $("trk-vac-list").innerHTML = vac.length
-    ? vac.map(d=>`<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-        <span class="b b-b">Vacant</span>
-        <div style="flex:1;font-weight:600;font-size:13px">${d.name}</div>
-        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer">
-          <input type="checkbox" id="vac-${d.id}"> Visited this week
-        </label></div>`).join("")
-    : `<div style="font-size:12px;color:var(--text2)">No vacant areas</div>`;
+  // Focus SKU
+  const skuTgt = (typeof FOCUS_SKU_TARGETS!=="undefined") ? FOCUS_SKU_TARGETS[u.name] : null;
+  $("trk-sku-list").innerHTML = FOCUS_SKUS.map((name,i)=>{
+    const key = FOCUS_SKU_KEYS[i];
+    const tgt = skuTgt?.[key]||0;
+    const existing = entry.sku?.[key]||0;
+    const weekTotal = _getWeeklySKUTotal(u.name, key, weekLbl);
+    const wPct = tgt>0 ? Math.round(weekTotal/tgt*100) : 0;
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600">${name}</div>
+        <div style="font-size:10px;color:var(--text2)">
+          ${tgt?`Tgt: ${tgt} cases · `:""}Week: ${weekTotal} cases${tgt?` (${wPct}%)`:""}
+        </div>
+      </div>
+      <input type="number" id="sku-${key}" placeholder="Today" value="${existing||""}"
+             style="width:80px" oninput="liveSKUPct('${key}',${tgt})">
+      <span class="b b-gray" id="sku-pct-${key}" style="min-width:38px;text-align:center">
+        ${existing>0&&tgt>0?Math.round(existing/tgt*100)+"%":"—"}
+      </span>
+    </div>`;
+  }).join("");
+
+  // Weekly summary
+  renderWeeklySummary(u.name, weekLbl, master);
 }
+
+function renderWeeklySummary(rsmName, weekLbl, master) {
+  const entries = STATE.dailyEntries?.[rsmName]||{};
+  const daysWithData = Object.keys(entries).filter(dk=>
+    _weekLabel(dk)===weekLbl &&
+    (Object.values(entries[dk].dbs||{}).some(v=>v>0) || Object.values(entries[dk].ss||{}).some(v=>v>0))
+  ).sort();
+
+  if(!daysWithData.length){
+    $("trk-week-summary").innerHTML=`<div style="font-size:12px;color:var(--text2)">No entries this week yet</div>`;
+    return;
+  }
+
+  let totalPri=0, totalSec=0;
+  daysWithData.forEach(dk=>{
+    const e=entries[dk];
+    Object.values(e.dbs||{}).forEach(v=>totalPri+=v);
+    Object.values(e.ss||{}).forEach(v=>totalSec+=v);
+  });
+
+  $("trk-week-summary").innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+      <span style="font-size:12px;font-weight:600">${weekLbl}</span>
+      <span style="font-size:11px;color:var(--text2)">${daysWithData.length} day${daysWithData.length>1?"s":""} entered</span>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:8px">
+      <div style="flex:1;background:var(--bg);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:14px;font-weight:700">${fmt(totalPri)}</div>
+        <div style="font-size:10px;color:var(--text2)">Primary total</div>
+      </div>
+      <div style="flex:1;background:var(--bg);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:14px;font-weight:700">${fmt(totalSec)}</div>
+        <div style="font-size:10px;color:var(--text2)">Secondary total</div>
+      </div>
+    </div>
+    ${daysWithData.map(dk=>`
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border)">
+        <span style="font-weight:600">${_dayLabel(dk).split(",")[0]}</span>
+        <span>Pri: ${fmt(Object.values(entries[dk].dbs||{}).reduce((a,v)=>a+v,0))}</span>
+        <span>Sec: ${fmt(Object.values(entries[dk].ss||{}).reduce((a,v)=>a+v,0))}</span>
+      </div>`).join("")}`;
+}
+
 
 function livePct(type,id,tgt) {
   const v = +$((type==="sec"?"sec-":"pri-")+id)?.value||0;
@@ -716,41 +1111,123 @@ function livePct(type,id,tgt) {
   if(el){el.className="b "+pcls(p);el.textContent=p+"%";}
 }
 
+function liveSKUPct(key, tgt) {
+  const v = +$("sku-"+key)?.value||0;
+  const el = $("sku-pct-"+key);
+  if(!el) return;
+  if(tgt>0){ const p=Math.round(v/tgt*100); el.className="b "+pcls(p); el.textContent=p+"%"; }
+  else { el.className="b b-gray"; el.textContent=v+" cs"; }
+}
+
 function saveTracker() {
   const u = STATE.user;
   const master = MASTER[u.name];
   if(!master) return;
-  const week = $("trk-week").value.trim() || _autoWeekLabel();
-  const parts = week.split(" ");
-  const month = parts[1] || "Apr";
 
-  if(!STATE.history) STATE.history = {};
+  const dateKey = STATE.trackerDateKey || _todayKey();
+  const weekLbl = _weekLabel(dateKey);
+  const month   = _monthFromKey(dateKey);
+  const fy      = _fyFromKey(dateKey);
+
+  // Save today's values into daily entries
+  _loadDailyEntries();
+  const entry = _getOrInitDailyEntry(u.name, dateKey);
 
   master.ss.forEach(ss=>{
     const v = +$("sec-"+ss.id)?.value||0;
-    const p = pct(v,ss.secTgt);
-    if(!STATE.history[ss.id]) STATE.history[ss.id]=[];
-    STATE.history[ss.id] = STATE.history[ss.id].filter(h=>h.week!==week);
-    STATE.history[ss.id].push({week,month,secAch:v,secPct:p});
+    if(!entry.ss) entry.ss = {};
+    entry.ss[ss.id] = v;
   });
   master.dbs.forEach(db=>{
     const v = +$("pri-"+db.id)?.value||0;
-    const p = pct(v,db.priTgt);
+    if(!entry.dbs) entry.dbs = {};
+    entry.dbs[db.id] = v;
+  });
+  FOCUS_SKU_KEYS.forEach(key=>{
+    const v = +$("sku-"+key)?.value||0;
+    if(!entry.sku) entry.sku = {};
+    entry.sku[key] = v;
+  });
+  _saveDailyEntries();
+
+  // Now roll up this week's daily entries into STATE.history
+  // for the Trends and Home score to reflect latest data
+  if(!STATE.history) STATE.history = {};
+  master.ss.forEach(ss=>{
+    const weekTotal = _getWeeklyTotal(u.name, ss.id, "ss", weekLbl);
+    if(!STATE.history[ss.id]) STATE.history[ss.id]=[];
+    STATE.history[ss.id] = STATE.history[ss.id].filter(h=>!(h.weekLabel===weekLbl&&h.month===month));
+    if(weekTotal>0) STATE.history[ss.id].push({
+      weekLabel:weekLbl, month, fy,
+      achieved:weekTotal, target:ss.secTgt,
+      achPct:ss.secTgt>0?weekTotal/ss.secTgt:null
+    });
+  });
+  master.dbs.forEach(db=>{
+    const weekTotal = _getWeeklyTotal(u.name, db.id, "db", weekLbl);
     if(!STATE.history[db.id]) STATE.history[db.id]=[];
-    STATE.history[db.id] = STATE.history[db.id].filter(h=>h.week!==week);
-    STATE.history[db.id].push({week,month,priAch:v,priPct:p});
+    STATE.history[db.id] = STATE.history[db.id].filter(h=>!(h.weekLabel===weekLbl&&h.month===month));
+    if(weekTotal>0) STATE.history[db.id].push({
+      weekLabel:weekLbl, month, fy,
+      achieved:weekTotal, target:db.priTgt,
+      achPct:db.priTgt>0?weekTotal/db.priTgt:null
+    });
   });
 
+  // Roll up SKU weekly totals
+  if(!STATE.skuHistory) STATE.skuHistory = {};
+  if(!STATE.skuHistory[u.name]) STATE.skuHistory[u.name] = {};
+  const skuMonthKey = `${month}_${fy}`;
+  const skuRollup = {};
+  FOCUS_SKU_KEYS.forEach(key=>{
+    skuRollup[key] = _getWeeklySKUTotal(u.name, key, weekLbl);
+  });
+  STATE.skuHistory[u.name][skuMonthKey] = skuRollup;
+  localStorage.setItem("skuHistory_"+u.name, JSON.stringify(STATE.skuHistory[u.name]));
+
   saveLocalData();
-  STATE.curMonth = month;
 
-  // Queue sync to Google Sheet if online
-  if(navigator.onLine) syncToSheet(week, month, master, u.name);
-  else queueSync(week, month);
+  // Sync day row to Sheet
+  if(navigator.onLine) syncDailyToSheet(dateKey, month, fy, weekLbl, master, u.name);
+  else queueSync(weekLbl, month);
 
-  $("trk-msg").textContent = "Saved! " + (navigator.onLine?"Syncing to Sheet...":"Queued — will sync when online.");
+  $("trk-msg").textContent = "Saved ✓ — " + _dayLabel(dateKey);
   setTimeout(()=>$("trk-msg").textContent="", 3000);
+
+  // Refresh tracker fields to show updated week totals
+  renderTrackerFields();
   renderHome();
+}
+
+async function syncDailyToSheet(dateKey, month, fy, weekLbl, master, rsmName) {
+  const sheetId = STATE.sheetId;
+  if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return;
+  const entry = STATE.dailyEntries?.[rsmName]?.[dateKey];
+  if(!entry) return;
+  const dayName = DAY_NAMES[new Date(...dateKey.split("-").map((v,i)=>i===1?v-1:+v)).getDay()];
+
+  try {
+    const token = await getGoogleToken();
+    if(!token) return;
+    const values = [];
+    master.ss.forEach(ss=>{
+      const v = entry.ss?.[ss.id]||0;
+      if(v>0) values.push([rsmName,"SS",ss.name,ss.town,
+        `${dayName} ${weekLbl}`,`${dayName} ${month}`,month,"Q1",fy,"",v,""]);
+    });
+    master.dbs.forEach(db=>{
+      const v = entry.dbs?.[db.id]||0;
+      if(v>0) values.push([rsmName,"DB",db.name,db.area,
+        `${dayName} ${weekLbl}`,`${dayName} ${month}`,month,"Q1",fy,"",v,""]);
+    });
+    if(!values.length) return;
+    const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/5_History!A:L:append?valueInputOption=USER_ENTERED`;
+    await fetch(url,{method:"POST",
+      headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+      body:JSON.stringify({values})});
+    $("sync-status").textContent="Synced ✓";
+    setTimeout(()=>$("sync-status").textContent="",3000);
+  } catch(e){ console.log("Daily sync error:",e); }
 }
 
 // ── TRENDS — full three-view engine ──────────────────────────
