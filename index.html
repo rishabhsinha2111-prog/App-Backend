@@ -977,8 +977,8 @@ function renderTrackerFields() {
   const entry    = _getOrInitDailyEntry(u.name, dateKey);
   const weekLbl  = _weekLabel(dateKey);
   const isToday  = dateKey === todayKey;
-  const hasEntry = Object.values(entry.dbs||{}).some(v=>v>0) ||
-                   Object.values(entry.ss||{}).some(v=>v>0);
+  const hasEntry = Object.values(entry.dbs||{}).some(v=>Object.values(v).some(x=>x>0)) ||
+                   Object.values(entry.ss||{}).some(v=>Object.values(v).some(x=>x>0));
 
   // Update header
   $("trk-date-lbl").textContent = _dayLabel(dateKey);
@@ -986,82 +986,152 @@ function renderTrackerFields() {
   const badge = $("trk-saved-badge");
   if(badge) { badge.style.display = (isToday && hasEntry) ? "block" : "none"; }
 
-  // SS list
-  $("trk-ss-list").innerHTML = master.ss.map(ss=>{
-    const existing = entry.ss?.[ss.id]||0;
-    const weekTotal = _getWeeklyTotal(u.name, ss.id, "ss", weekLbl);
-    const wPct = ss.secTgt>0 ? Math.round(weekTotal/ss.secTgt*100) : 0;
-    return `<div class="card" style="margin-bottom:8px">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
-        <div class="av av-b">${ss.name.slice(0,2).toUpperCase()}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ss.name}</div>
-          <div style="font-size:10px;color:var(--text2)">${ss.town} · Monthly tgt ${fmt(ss.secTgt)}</div>
-        </div>
-        <span class="b ${pcls(wPct)}" style="font-size:10px">${wPct}% WTD</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <input type="number" id="sec-${ss.id}" placeholder="Today's secondary (₹ lakhs)"
-               value="${existing||""}" style="flex:1"
-               oninput="livePct('sec','${ss.id}',${ss.secTgt})">
-        <span class="b b-gray" id="ss-pct-${ss.id}">${existing>0&&ss.secTgt>0?Math.round(existing/ss.secTgt*100)+"%":"—"}</span>
-      </div>
-      ${weekTotal>0?`<div style="font-size:10px;color:var(--text2);margin-top:5px">Week total: ${fmt(weekTotal)} · ${wPct}% of target</div>`:""}
-    </div>`;
-  }).join("");
+  const skuTgt = (typeof FOCUS_SKU_TARGETS!=="undefined") ? FOCUS_SKU_TARGETS[u.name] : null;
 
-  // DB list
-  $("trk-db-list").innerHTML = master.dbs.map(db=>{
-    const existing = entry.dbs?.[db.id]||0;
-    const weekTotal = _getWeeklyTotal(u.name, db.id, "db", weekLbl);
-    const wPct = db.priTgt>0 ? Math.round(weekTotal/db.priTgt*100) : 0;
+  // ── Entity card builder (used for both SS and DB) ─────────
+  function buildEntityCard(ent, type) {
+    const avCls  = type==="ss" ? "av-b" : "av-g";
+    const entData = entry[type==="ss"?"ss":"dbs"]?.[ent.id] || {};
+    // entData = {pri, sec, sku:{total,mrp10,...}}
+
+    const priVal     = entData.pri||0;
+    const secVal     = entData.sec||0;
+    const skuData    = entData.sku||{};
+
+    const priTgt     = ent.priTgt||0;
+    const secTgt     = ent.secTgt||0;
+
+    // Weekly totals
+    const priWeek = _getWeeklyEntTotal(u.name, ent.id, type, "pri", weekLbl);
+    const secWeek = _getWeeklyEntTotal(u.name, ent.id, type, "sec", weekLbl);
+    const priWPct = priTgt>0 ? Math.round(priWeek/priTgt*100) : 0;
+    const secWPct = secTgt>0 ? Math.round(secWeek/secTgt*100) : 0;
+
+    // SKU week totals
+    const skuWeek = {};
+    FOCUS_SKU_KEYS.forEach(k=>{
+      skuWeek[k] = _getWeeklyEntSKUTotal(u.name, ent.id, k, weekLbl);
+    });
+
+    const typeTag = type==="ss"
+      ? `<span class="b b-b" style="font-size:9px">SS</span>`
+      : `<span class="b b-g" style="font-size:9px">DB</span>`;
+    const vacTag  = ent.area==="Vacant" ? `<span class="b b-b" style="font-size:9px">Vacant</span>` : "";
+    const mustTag = ent.mustVisit ? `<span class="b b-a" style="font-size:9px">Must visit</span>` : "";
+
     return `<div class="card" style="margin-bottom:8px">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
-        <div class="av av-g">${db.name.slice(0,2).toUpperCase()}</div>
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div class="av ${avCls}">${ent.name.slice(0,2).toUpperCase()}</div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-            ${db.name}${db.mustVisit?` <span class="b b-a" style="font-size:9px">Must visit</span>`:""}
-            ${db.area==="Vacant"?` <span class="b b-b" style="font-size:9px">Vacant</span>`:""}
+            ${ent.name} ${typeTag}${mustTag}${vacTag}
           </div>
-          <div style="font-size:10px;color:var(--text2)">Monthly tgt ${fmt(db.priTgt)}</div>
+          <div style="font-size:10px;color:var(--text2)">
+            ${priTgt?`Pri tgt: ${fmt(priTgt)}`:""}${priTgt&&secTgt?" · ":""}${secTgt?`Sec tgt: ${fmt(secTgt)}`:""}
+          </div>
         </div>
-        <span class="b ${pcls(wPct)}" style="font-size:10px">${wPct}% WTD</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <input type="number" id="pri-${db.id}" placeholder="Today's primary (₹ lakhs)"
-               value="${existing||""}" style="flex:1"
-               oninput="livePct('pri','${db.id}',${db.priTgt})">
-        <span class="b b-gray" id="db-pct-${db.id}">${existing>0&&db.priTgt>0?Math.round(existing/db.priTgt*100)+"%":"—"}</span>
-      </div>
-      ${weekTotal>0?`<div style="font-size:10px;color:var(--text2);margin-top:5px">Week total: ${fmt(weekTotal)} · ${wPct}% of target</div>`:""}
-    </div>`;
-  }).join("");
 
-  // Focus SKU
-  const skuTgt = (typeof FOCUS_SKU_TARGETS!=="undefined") ? FOCUS_SKU_TARGETS[u.name] : null;
-  $("trk-sku-list").innerHTML = FOCUS_SKUS.map((name,i)=>{
-    const key = FOCUS_SKU_KEYS[i];
-    const tgt = skuTgt?.[key]||0;
-    const existing = entry.sku?.[key]||0;
-    const weekTotal = _getWeeklySKUTotal(u.name, key, weekLbl);
-    const wPct = tgt>0 ? Math.round(weekTotal/tgt*100) : 0;
-    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <div style="flex:1">
-        <div style="font-size:12px;font-weight:600">${name}</div>
-        <div style="font-size:10px;color:var(--text2)">
-          ${tgt?`Tgt: ${tgt} cases · `:""}Week: ${weekTotal} cases${tgt?` (${wPct}%)`:""}
+      <!-- Primary + Secondary inputs -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px">
+            Primary (₹L) ${priWeek>0?`<span style="color:var(--green)">WTD:${priWPct}%</span>`:""}
+          </div>
+          <input type="number" id="pri-${type}-${ent.id}" placeholder="Today"
+                 value="${priVal||""}" style="width:100%"
+                 oninput="liveEntPct('pri','${type}','${ent.id}',${priTgt})">
+          <div style="font-size:9px;color:var(--text2);margin-top:2px">
+            Week: ${fmt(priWeek)}${priTgt?` · ${priWPct}%`:""}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px">
+            Secondary (₹L) ${secWeek>0?`<span style="color:var(--green)">WTD:${secWPct}%</span>`:""}
+          </div>
+          <input type="number" id="sec-${type}-${ent.id}" placeholder="Today"
+                 value="${secVal||""}" style="width:100%"
+                 oninput="liveEntPct('sec','${type}','${ent.id}',${secTgt})">
+          <div style="font-size:9px;color:var(--text2);margin-top:2px">
+            Week: ${fmt(secWeek)}${secTgt?` · ${secWPct}%`:""}
+          </div>
         </div>
       </div>
-      <input type="number" id="sku-${key}" placeholder="Today" value="${existing||""}"
-             style="width:80px" oninput="liveSKUPct('${key}',${tgt})">
-      <span class="b b-gray" id="sku-pct-${key}" style="min-width:38px;text-align:center">
-        ${existing>0&&tgt>0?Math.round(existing/tgt*100)+"%":"—"}
-      </span>
+
+      <!-- Focus SKUs -->
+      <div style="border-top:1px solid var(--border);padding-top:8px">
+        <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:6px;letter-spacing:.04em">FOCUS SKU (cases today)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          ${FOCUS_SKUS.map((skuName,i)=>{
+            const key = FOCUS_SKU_KEYS[i];
+            const tgt = skuTgt?.[key]||0;
+            const val = skuData[key]||0;
+            const wk  = skuWeek[key]||0;
+            const wPct = tgt>0 ? Math.round(wk/tgt*100) : 0;
+            const billed = wk > 0;
+            return `<div style="background:${billed?"var(--green-bg)":"var(--bg)"};border-radius:6px;padding:6px 8px">
+              <div style="font-size:9px;font-weight:600;color:${billed?"var(--green)":"var(--text2)"}">
+                ${skuName}${billed?` ✓`:""}
+              </div>
+              <input type="number" id="sku-${type}-${ent.id}-${key}" placeholder="0"
+                     value="${val||""}" style="width:100%;margin-top:3px;font-size:12px"
+                     oninput="liveEntSKU('${type}','${ent.id}','${key}',${tgt})">
+              <div style="font-size:9px;color:var(--text2);margin-top:2px">
+                Wk: ${wk}${tgt?` / ${tgt} (${wPct}%)`:" cases"}
+              </div>
+            </div>`;
+          }).join("")}
+        </div>
+      </div>
     </div>`;
-  }).join("");
+  }
+
+  // Render SS list
+  $("trk-ss-list").innerHTML = master.ss.map(ss=>buildEntityCard(ss,"ss")).join("");
+
+  // Render DB list
+  $("trk-db-list").innerHTML = master.dbs.map(db=>buildEntityCard(db,"db")).join("");
+
+  // Hide the old standalone SKU section (now embedded per entity)
+  const skuSection = $("trk-sku-list");
+  if(skuSection) skuSection.closest(".card") && (skuSection.closest(".card").style.display="none");
 
   // Weekly summary
   renderWeeklySummary(u.name, weekLbl, master);
+}
+
+// ── Weekly total helpers for new per-entity structure ─────────
+function _getWeeklyEntTotal(rsmName, entId, type, field, weekLbl) {
+  const entries = STATE.dailyEntries?.[rsmName]||{};
+  let total = 0;
+  Object.entries(entries).forEach(([dk, e])=>{
+    if(_weekLabel(dk)!==weekLbl) return;
+    const store = type==="ss" ? e.ss : e.dbs;
+    total += store?.[entId]?.[field]||0;
+  });
+  return total;
+}
+
+function _getWeeklyEntSKUTotal(rsmName, entId, skuKey, weekLbl) {
+  const entries = STATE.dailyEntries?.[rsmName]||{};
+  let total = 0;
+  Object.entries(entries).forEach(([dk, e])=>{
+    if(_weekLabel(dk)!==weekLbl) return;
+    // check both ss and dbs
+    total += e.ss?.[entId]?.sku?.[skuKey]||0;
+    total += e.dbs?.[entId]?.sku?.[skuKey]||0;
+  });
+  return total;
+}
+
+function liveEntPct(field, type, id, tgt) {
+  const v = +$(`${field}-${type}-${id}`)?.value||0;
+  // no badge needed — week total shown inline
+}
+
+function liveEntSKU(type, id, key, tgt) {
+  // visual feedback handled by background color in template
 }
 
 function renderWeeklySummary(rsmName, weekLbl, master) {
@@ -1137,19 +1207,20 @@ function saveTracker() {
   const entry = _getOrInitDailyEntry(u.name, dateKey);
 
   master.ss.forEach(ss=>{
-    const v = +$("sec-"+ss.id)?.value||0;
-    if(!entry.ss) entry.ss = {};
-    entry.ss[ss.id] = v;
+    const pri = +$(`pri-ss-${ss.id}`)?.value||0;
+    const sec = +$(`sec-ss-${ss.id}`)?.value||0;
+    const skuData = {};
+    FOCUS_SKU_KEYS.forEach(k=>{ skuData[k] = +$(`sku-ss-${ss.id}-${k}`)?.value||0; });
+    if(!entry.ss) entry.ss={};
+    entry.ss[ss.id] = {pri, sec, sku:skuData};
   });
   master.dbs.forEach(db=>{
-    const v = +$("pri-"+db.id)?.value||0;
-    if(!entry.dbs) entry.dbs = {};
-    entry.dbs[db.id] = v;
-  });
-  FOCUS_SKU_KEYS.forEach(key=>{
-    const v = +$("sku-"+key)?.value||0;
-    if(!entry.sku) entry.sku = {};
-    entry.sku[key] = v;
+    const pri = +$(`pri-db-${db.id}`)?.value||0;
+    const sec = +$(`sec-db-${db.id}`)?.value||0;
+    const skuData = {};
+    FOCUS_SKU_KEYS.forEach(k=>{ skuData[k] = +$(`sku-db-${db.id}-${k}`)?.value||0; });
+    if(!entry.dbs) entry.dbs={};
+    entry.dbs[db.id] = {pri, sec, sku:skuData};
   });
   _saveDailyEntries();
 
@@ -1157,33 +1228,40 @@ function saveTracker() {
   // for the Trends and Home score to reflect latest data
   if(!STATE.history) STATE.history = {};
   master.ss.forEach(ss=>{
-    const weekTotal = _getWeeklyTotal(u.name, ss.id, "ss", weekLbl);
+    const weekPri = _getWeeklyEntTotal(u.name, ss.id, "ss", "pri", weekLbl);
+    const weekSec = _getWeeklyEntTotal(u.name, ss.id, "ss", "sec", weekLbl);
     if(!STATE.history[ss.id]) STATE.history[ss.id]=[];
     STATE.history[ss.id] = STATE.history[ss.id].filter(h=>!(h.weekLabel===weekLbl&&h.month===month));
-    if(weekTotal>0) STATE.history[ss.id].push({
+    if(weekPri>0||weekSec>0) STATE.history[ss.id].push({
       weekLabel:weekLbl, month, fy,
-      achieved:weekTotal, target:ss.secTgt,
-      achPct:ss.secTgt>0?weekTotal/ss.secTgt:null
+      achieved:weekSec, target:ss.secTgt,
+      achievedPri:weekPri,
+      achPct:ss.secTgt>0?weekSec/ss.secTgt:null
     });
   });
   master.dbs.forEach(db=>{
-    const weekTotal = _getWeeklyTotal(u.name, db.id, "db", weekLbl);
+    const weekPri = _getWeeklyEntTotal(u.name, db.id, "db", "pri", weekLbl);
+    const weekSec = _getWeeklyEntTotal(u.name, db.id, "db", "sec", weekLbl);
     if(!STATE.history[db.id]) STATE.history[db.id]=[];
     STATE.history[db.id] = STATE.history[db.id].filter(h=>!(h.weekLabel===weekLbl&&h.month===month));
-    if(weekTotal>0) STATE.history[db.id].push({
+    if(weekPri>0||weekSec>0) STATE.history[db.id].push({
       weekLabel:weekLbl, month, fy,
-      achieved:weekTotal, target:db.priTgt,
-      achPct:db.priTgt>0?weekTotal/db.priTgt:null
+      achieved:weekPri, target:db.priTgt,
+      achievedSec:weekSec,
+      achPct:db.priTgt>0?weekPri/db.priTgt:null
     });
   });
 
-  // Roll up SKU weekly totals
+  // Roll up SKU weekly totals per entity
   if(!STATE.skuHistory) STATE.skuHistory = {};
   if(!STATE.skuHistory[u.name]) STATE.skuHistory[u.name] = {};
   const skuMonthKey = `${month}_${fy}`;
   const skuRollup = {};
   FOCUS_SKU_KEYS.forEach(key=>{
-    skuRollup[key] = _getWeeklySKUTotal(u.name, key, weekLbl);
+    let total = 0;
+    master.ss.forEach(ss=>{ total += _getWeeklyEntSKUTotal(u.name, ss.id, key, weekLbl); });
+    master.dbs.forEach(db=>{ total += _getWeeklyEntSKUTotal(u.name, db.id, key, weekLbl); });
+    skuRollup[key] = total;
   });
   STATE.skuHistory[u.name][skuMonthKey] = skuRollup;
   localStorage.setItem("skuHistory_"+u.name, JSON.stringify(STATE.skuHistory[u.name]));
