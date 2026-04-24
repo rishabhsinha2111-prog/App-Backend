@@ -549,20 +549,33 @@ function renderHome() {
   const master = MASTER[u.name];
   if (!master) return;
   const hist = STATE.history;
-  const curMonth = STATE.curMonth;
+  const curMonth = curMonthStr();
+  const q4 = ["Jan","Feb","Mar"];
+  const yr  = curYearNum();
+  const curFY_ = q4.includes(curMonth)
+    ? `FY${yr-1}-${String(yr).slice(2)}`
+    : `FY${yr}-${String(yr+1).slice(2)}`;
 
-  // Averages
-  let secSum=0,priSum=0,cnt=0;
+  // Averages — use achPct if available, else achieved/target
+  let secSum=0, priSum=0, secCnt=0, priCnt=0;
   master.ss.forEach(ss=>{
-    const d=(hist[ss.id]||[]).filter(h=>h.month===curMonth);
-    if(d.length){secSum+=d.reduce((a,h)=>a+h.secPct,0)/d.length;cnt++;}
+    const rows=(hist[ss.id]||[]).filter(h=>h.month===curMonth && h.fy===curFY_ && h.weekLabel==="Monthly");
+    if(!rows.length) return;
+    const row = rows[0];
+    const p = row.achPct!=null ? row.achPct*100
+              : ss.secTgt>0 ? (row.achieved||0)/ss.secTgt*100 : 0;
+    if(!isNaN(p)){ secSum+=p; secCnt++; }
   });
   master.dbs.forEach(db=>{
-    const d=(hist[db.id]||[]).filter(h=>h.month===curMonth);
-    if(d.length){priSum+=d.reduce((a,h)=>a+h.priPct,0)/d.length;}
+    const rows=(hist[db.id]||[]).filter(h=>h.month===curMonth && h.fy===curFY_ && h.weekLabel==="Monthly");
+    if(!rows.length) return;
+    const row = rows[0];
+    const p = row.achPct!=null ? row.achPct*100
+              : db.priTgt>0 ? (row.achieved||0)/db.priTgt*100 : 0;
+    if(!isNaN(p)){ priSum+=p; priCnt++; }
   });
-  const avgSec = cnt ? Math.round(secSum/cnt) : 0;
-  const avgPri = cnt ? Math.round(priSum/cnt) : 0;
+  const avgSec = secCnt ? Math.round(secSum/secCnt) : 0;
+  const avgPri = priCnt ? Math.round(priSum/priCnt) : 0;
 
   const pjp = (STATE.pjpExec[curMonth]||[]);
   const done = pjp.filter(v=>v.status==="done").length;
@@ -575,9 +588,12 @@ function renderHome() {
   // Alerts
   const alerts = [];
   master.ss.forEach(ss=>{
-    const d=(hist[ss.id]||[]).filter(h=>h.month===curMonth);
-    const p=d.length?Math.round(d.reduce((a,h)=>a+h.secPct,0)/d.length):0;
-    if(p<70) alerts.push({type:"low",name:ss.name,sub:ss.town,pct:p});
+    const rows=(hist[ss.id]||[]).filter(h=>h.month===curMonth && h.fy===curFY_ && h.weekLabel==="Monthly");
+    if(!rows.length) return;
+    const row=rows[0];
+    const p = row.achPct!=null ? Math.round(row.achPct*100)
+              : ss.secTgt>0 ? Math.round((row.achieved||0)/ss.secTgt*100) : 0;
+    if(!isNaN(p) && p<70) alerts.push({type:"low",name:ss.name,sub:ss.town,pct:p});
   });
   master.dbs.filter(d=>d.area==="Vacant").forEach(db=>{
     alerts.push({type:"vacant",name:db.name,sub:"Vacant area"});
@@ -867,8 +883,8 @@ function renderTrendL3M() {
   const now = new Date();
   const curMIdx = CAL_MONTHS.indexOf(curMonthStr()); // use calendar index
 
-  // L3M = current month + prev 2 months (in calendar order)
-  const l3mMonths = [0,1,2].map(i=>{
+  // L3M = last 3 COMPLETED months (exclude current month)
+  const l3mMonths = [1,2,3].map(i=>{
     const idx = ((curMIdx - i) + 12) % 12;
     return CAL_MONTHS[idx];
   }).reverse();
@@ -885,10 +901,13 @@ function renderTrendL3M() {
   // Team L3M totals
   let tyTotal=0, lyTotal=0, tyPcts=[], lyPcts=[];
   entities.forEach(ent=>{
-    const tyRows = getHistData(ent.id, r=>r.fy===curFY && l3mMonths.includes(r.month) && r.weekLabel==="Monthly");
-    const lyRows = prevFY ? getHistData(ent.id, r=>r.fy===prevFY && l3mMonthsLY.includes(r.month) && r.weekLabel==="Monthly") : [];
-    tyTotal += tyRows.reduce((a,r)=>a+(r.achieved||0),0);
-    lyTotal += lyRows.reduce((a,r)=>a+(r.achieved||0),0);
+    const tyRowsH = getHistData(ent.id, r=>
+      l3mMonths.includes(r.month) && r.weekLabel==="Monthly" &&
+      [curFY, ...fys.slice(-2)].filter(Boolean).includes(r.fy)
+    );
+    const lyRowsH = prevFY ? getHistData(ent.id, r=>r.fy===prevFY && l3mMonthsLY.includes(r.month) && r.weekLabel==="Monthly") : [];
+    tyTotal += tyRowsH.reduce((a,r)=>a+(r.achieved||0),0);
+    lyTotal += lyRowsH.reduce((a,r)=>a+(r.achieved||0),0);
     const tyA = tyRows.length ? tyRows.reduce((a,r)=>a+(r.achPct||0),0)/tyRows.length : 0;
     const lyA = lyRows.length ? lyRows.reduce((a,r)=>a+(r.achPct||0),0)/lyRows.length : 0;
     if(tyA) tyPcts.push(tyA); if(lyA) lyPcts.push(lyA);
@@ -921,8 +940,21 @@ function renderTrendL3M() {
 
   const entCards = entities.map(ent=>{
     const isOpen = STATE.expanded[ent.id]||false;
-    const tyRows = getHistData(ent.id, r=>r.fy===curFY && l3mMonths.includes(r.month) && r.weekLabel==="Monthly");
-    const lyRows = prevFY ? getHistData(ent.id, r=>r.fy===prevFY && l3mMonthsLY.includes(r.month) && r.weekLabel==="Monthly") : [];
+    // Each month may be in a different FY (e.g. Feb/Mar 2026 = FY2025-26, Apr 2026 = FY2026-27)
+    const tyRows = getHistData(ent.id, r=>
+      l3mMonths.includes(r.month) && r.weekLabel==="Monthly" &&
+      (r.fy===curFY || r.fy===prevFY || r.fy===fys[fys.length-1] || r.fy===fys[fys.length-2])
+    ).filter(r=>{
+      // Keep only rows from the last 3 calendar months (not last year's same months)
+      const now2=new Date(); const cutoff=new Date(now2.getFullYear(), now2.getMonth()-3, 1);
+      // simple check: if month is in l3mMonths and fy is recent (not LY), keep
+      const recentFYs=[curFY, fys[fys.length-1], fys[fys.length-2]].filter(Boolean);
+      return recentFYs.includes(r.fy);
+    });
+    const lyRows = getHistData(ent.id, r=>
+      l3mMonthsLY.includes(r.month) && r.weekLabel==="Monthly" &&
+      (prevFY ? r.fy===prevFY : false)
+    );
     const tyVal = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
     const lyVal = lyRows.reduce((a,r)=>a+(r.achieved||0),0);
     const diff = lyVal > 0 ? Math.round((tyVal-lyVal)/lyVal*100) : null;
