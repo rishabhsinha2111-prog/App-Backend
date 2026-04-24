@@ -4,7 +4,7 @@
 // So phones always get the new version within 60 seconds automatically
 
 const DEPLOY_TIME = "__DEPLOY_TIME__"; // replaced at build time if using CI
-const CACHE = "salesops-v12"; // bump this manually when deploying updates
+const CACHE = "salesops-v13"; // bump this manually when deploying updates
 const ASSETS = [
   "/",
   "/index.html",
