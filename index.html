@@ -366,8 +366,8 @@ const FY_MONTHS_ORDER = MONTHS;
 const MONTH_TO_QTR = {Apr:"Q1",May:"Q1",Jun:"Q1",Jul:"Q2",Aug:"Q2",Sep:"Q2",Oct:"Q3",Nov:"Q3",Dec:"Q3",Jan:"Q4",Feb:"Q4",Mar:"Q4"};
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat"];
 // Focus SKU constants — always defined here so they're available before data.js
-const FOCUS_SKUS     = ["Total","10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
-const FOCUS_SKU_KEYS = ["total","mrp10","papdiGathiya","chilliWheel","puffGarlic"];
+const FOCUS_SKUS     = ["10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
+const FOCUS_SKU_KEYS = ["mrp10","papdiGathiya","chilliWheel","puffGarlic"];
 
 // ── USER STORE + MASTER DATA ──────────────────────────────────
 // Loaded from data.js — edit that file to change RSMs/PINs/DBs
@@ -443,9 +443,11 @@ function startApp() {
   renderTracker();
   renderPJP();
   if(navigator.onLine) {
-    // Show loading state while fetching Sheet
     $("sync-status").textContent = "Loading data...";
-    loadHistoryFromSheet().then(()=>{
+    // Load RSM data first (cached for 24h), then load history
+    loadRSMDataFromSheet().then(()=>{
+      return loadHistoryFromSheet();
+    }).then(()=>{
       renderHome();
       renderTrends();
     });
@@ -1286,23 +1288,51 @@ async function syncDailyToSheet(dateKey, month, fy, weekLbl, master, rsmName) {
   const entry = STATE.dailyEntries?.[rsmName]?.[dateKey];
   if(!entry) return;
   const dayName = DAY_NAMES[new Date(...dateKey.split("-").map((v,i)=>i===1?v-1:+v)).getDay()];
+  const qtr = MONTH_TO_QTR[month]||"Q1";
+  const dayWeekLbl = `${dayName} ${weekLbl}`;
+  const dayPeriod  = `${dayName} ${month}`;
 
   try {
     const token = await getGoogleToken();
     if(!token) return;
     const values = [];
+
     master.ss.forEach(ss=>{
-      const v = entry.ss?.[ss.id]||0;
-      if(v>0) values.push([rsmName,"SS",ss.name,ss.town,
-        `${dayName} ${weekLbl}`,`${dayName} ${month}`,month,"Q1",fy,"",v,""]);
+      const d = entry.ss?.[ss.id]||{};
+      const pri = d.pri||0;
+      const sec = d.sec||0;
+      const sku = d.sku||{};
+      if(pri>0||sec>0) {
+        // One row per SS per day: cols A-L + 4 SKU cols M-P
+        values.push([
+          rsmName, "SS", ss.name, ss.town,
+          dayWeekLbl, dayPeriod, month, qtr, fy,
+          ss.secTgt||"", sec, sec&&ss.secTgt?Math.round(sec/ss.secTgt*100)/100:"",
+          // Extra cols for pri and SKUs
+          pri,
+          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.puffGarlic||0
+        ]);
+      }
     });
+
     master.dbs.forEach(db=>{
-      const v = entry.dbs?.[db.id]||0;
-      if(v>0) values.push([rsmName,"DB",db.name,db.area,
-        `${dayName} ${weekLbl}`,`${dayName} ${month}`,month,"Q1",fy,"",v,""]);
+      const d = entry.dbs?.[db.id]||{};
+      const pri = d.pri||0;
+      const sec = d.sec||0;
+      const sku = d.sku||{};
+      if(pri>0||sec>0) {
+        values.push([
+          rsmName, "DB", db.name, db.area,
+          dayWeekLbl, dayPeriod, month, qtr, fy,
+          db.priTgt||"", pri, pri&&db.priTgt?Math.round(pri/db.priTgt*100)/100:"",
+          sec,
+          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.puffGarlic||0
+        ]);
+      }
     });
+
     if(!values.length) return;
-    const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/5_History!A:L:append?valueInputOption=USER_ENTERED`;
+    const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/5_History!A:Q:append?valueInputOption=USER_ENTERED`;
     await fetch(url,{method:"POST",
       headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
       body:JSON.stringify({values})});
@@ -1864,6 +1894,150 @@ async function getGoogleToken() {
 // Columns: A=RSM, B=EntityType, C=EntityName, D=Town,
 //          E=WeekLabel, F=PeriodLabel, G=Month, H=Quarter,
 //          I=FinancialYear, J=Target, K=Achieved, L=AchPct
+
+
+// ── LOAD RSM DATA FROM SHEET ──────────────────────────────────
+// Reads RSM_Master + individual RSM tab once per day, caches for 24h
+async function loadRSMDataFromSheet() {
+  const sheetId = STATE.sheetId;
+  if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return false;
+
+  // Check 24h cache
+  const cacheKey = "rsmData_cache";
+  const tsKey    = "rsmData_ts";
+  const cached   = localStorage.getItem(cacheKey);
+  const ts       = +localStorage.getItem(tsKey)||0;
+  const AGE_24H  = 24*60*60*1000;
+
+  if(cached && Date.now()-ts < AGE_24H) {
+    try {
+      const parsed = JSON.parse(cached);
+      _applyRSMData(parsed);
+      console.log("RSM data loaded from cache");
+      return true;
+    } catch(e) { /* cache corrupt, re-fetch */ }
+  }
+
+  try {
+    $("sync-status").textContent = "Loading RSM data...";
+
+    // 1. Fetch RSM_Master
+    const masterUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=RSM_Master`;
+    const masterRes = await fetch(masterUrl);
+    if(!masterRes.ok) throw new Error("RSM_Master fetch failed");
+    const masterCSV = await masterRes.text();
+    const masterRows = parseCSV(masterCSV).slice(2); // skip title + header rows
+
+    if(!masterRows.length) throw new Error("No RSM master data");
+
+    // Parse RSM master: Name,Zone,PIN,Role,SKUTotal,SKU10MRP,SKUPapdi,SKUChilli,SKUPuff,Active
+    const rsmList = [];
+    masterRows.forEach(r=>{
+      if(!r[0]||r[0].trim()==="") return;
+      if((r[9]||"").toString().toLowerCase()==="no") return; // skip inactive
+      rsmList.push({
+        name:  r[0].trim().toLowerCase(),
+        zone:  r[1]||"",
+        pin:   r[2]||"1234",
+        role:  (r[3]||"rsm").toLowerCase(),
+        skuTgt:{
+          total:     +r[4]||0,
+          mrp10:     +r[5]||0,
+          papdiGathiya:+r[6]||0,
+          chilliWheel: +r[7]||0,
+          puffGarlic:  +r[8]||0,
+        }
+      });
+    });
+
+    // 2. Fetch entity data for current RSM's tab
+    const curRSM = STATE.user?.name;
+    const rsmInfo = rsmList.find(r=>r.name===curRSM);
+    if(!rsmInfo && STATE.user?.role!=="manager") throw new Error("RSM not found in master");
+
+    // Determine which tabs to fetch
+    const tabsToFetch = STATE.user?.role==="manager"
+      ? rsmList.filter(r=>r.role==="rsm").map(r=>r.name)
+      : [curRSM];
+
+    const entityMap = {};
+    for(const rsmName of tabsToFetch) {
+      // Tab name format: XX_Firstname (e.g. RU_Rajesh)
+      const parts = rsmName.split(" ");
+      const tabName = (parts.map(p=>p[0]).join("").toUpperCase().slice(0,2))
+                    + "_" + (parts[0]?.[0].toUpperCase()+(parts[0]?.slice(1)||""));
+
+      try {
+        const entUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+        const entRes = await fetch(entUrl);
+        if(!entRes.ok) continue;
+        const entCSV = await entRes.text();
+        const entRows = parseCSV(entCSV).slice(3); // skip title, info, header rows
+
+        const ss=[], dbs=[];
+        entRows.forEach((r,i)=>{
+          if(!r[0]||r[0].trim()==="") return;
+          const name    = r[0].trim();
+          const type    = (r[1]||"DB").trim().toUpperCase();
+          const town    = r[2]||"";
+          const area    = r[3]||"Active";
+          const priTgt  = +r[4]||0;
+          const secTgt  = +r[5]||0;
+          const mustVis = (r[6]||"").toString().toLowerCase()==="yes";
+          const id      = `${type.toLowerCase()}_${rsmName.replace(/\s/g,"_").slice(0,3)}_${i+1}`;
+
+          if(type==="SS") ss.push({id, name, town, secTgt, priTgt, area, mustVisit:mustVis});
+          else dbs.push({id, name, ssId:"", priTgt, secTgt, area, mustVisit:mustVis});
+        });
+        entityMap[rsmName] = {ss, dbs};
+      } catch(e){ console.log("Entity fetch failed for",rsmName,e); }
+    }
+
+    const rsmData = {rsmList, entityMap, fetchedAt: Date.now()};
+
+    // Cache it
+    localStorage.setItem(cacheKey, JSON.stringify(rsmData));
+    localStorage.setItem(tsKey, Date.now().toString());
+
+    _applyRSMData(rsmData);
+    $("sync-status").textContent = "RSM data updated ✓";
+    setTimeout(()=>$("sync-status").textContent="", 3000);
+    return true;
+
+  } catch(e) {
+    console.log("RSM data load error:", e);
+    $("sync-status").textContent = "";
+    // Fall back to data.js USERS/MASTER — always available
+    return false;
+  }
+}
+
+function _applyRSMData(rsmData) {
+  if(!rsmData?.rsmList?.length) return;
+
+  // Override USERS with Sheet data
+  rsmData.rsmList.forEach(r=>{
+    if(window.USERS) USERS[r.name] = {zone:r.zone, pin:r.pin, role:r.role};
+  });
+
+  // Override MASTER with Sheet entity data
+  Object.entries(rsmData.entityMap||{}).forEach(([rsmName, data])=>{
+    if(window.MASTER) MASTER[rsmName] = data;
+  });
+
+  // Override FOCUS_SKU_TARGETS with Sheet data
+  rsmData.rsmList.forEach(r=>{
+    if(window.FOCUS_SKU_TARGETS && r.skuTgt) {
+      FOCUS_SKU_TARGETS[r.name] = {
+        month: "current",
+        fy: "current",
+        ...r.skuTgt
+      };
+    }
+  });
+
+  console.log("RSM data applied from Sheet:", rsmData.rsmList.length, "RSMs");
+}
 
 // ── CSV parser for public Sheet read ─────────────────────────
 function parseCSV(text) {
