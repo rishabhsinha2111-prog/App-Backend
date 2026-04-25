@@ -497,7 +497,17 @@ function loadLocalData() {
 
   const pKey = "pjpExec_" + STATE.user.name;
   const pStored = localStorage.getItem(pKey);
-  STATE.pjpExec = pStored ? JSON.parse(pStored) : _seedPJP();
+  if(pStored) {
+    try {
+      const parsed = JSON.parse(pStored);
+      // Migrate old format (keyed by month like "Apr") to new format (keyed by week like "W4 Apr 2026")
+      const isOldFormat = Object.keys(parsed).some(k=>CAL_MONTHS.includes(k));
+      STATE.pjpExec = isOldFormat ? {} : parsed;
+      if(isOldFormat) localStorage.removeItem(pKey); // clear stale data
+    } catch(e) { STATE.pjpExec = {}; }
+  } else {
+    STATE.pjpExec = {};
+  }
 
   // Load SKU history
   const skuStored = localStorage.getItem("skuHistory_"+STATE.user.name);
@@ -572,28 +582,9 @@ function _seedHistory() {
 }
 
 function _seedPJP() {
-  const name = STATE.user.name;
-  const master = MASTER[name];
-  if (!master) return {};
-  const plan = {};
-  const months = ["Mar","Apr"];
-  months.forEach(m => {
-    plan[m] = [];
-    DAYS.forEach((day,di) => {
-      master.dbs.forEach((db,i) => {
-        if ((di+i)%2===0) {
-          plan[m].push({
-            week:`W${Math.ceil((di+1)/2)} ${m}`, day,
-            db:db.name, ss:master.ss.find(s=>s.id===db.ssId)?.name||"—",
-            score:Math.round(Math.random()*60+20),
-            mustVisit:db.mustVisit,
-            status: m==="Mar"?(Math.random()>0.2?"done":"missed"):"pending"
-          });
-        }
-      });
-    });
-  });
-  return plan;
+  // Returns empty object — PJP plan comes from Sheet (3_PJP_Output)
+  // or gets populated when RSM loads the PJP tab
+  return {};
 }
 
 function _autoWeekLabel() {
@@ -1125,7 +1116,9 @@ function renderTrackerFields() {
 
   // Hide the old standalone SKU section (now embedded per entity)
   const skuSection = $("trk-sku-list");
-  if(skuSection) skuSection.closest(".card") && (skuSection.closest(".card").style.display="none");
+  if(skuSection && skuSection.closest(".card")) {
+    skuSection.closest(".card").style.display = "none";
+  }
 
   // Weekly summary
   renderWeeklySummary(u.name, weekLbl, master);
@@ -2201,15 +2194,21 @@ async function loadRSMDataFromSheet() {
   }
 
   try {
-    $("sync-status").textContent = "Loading RSM data...";
+    const ss_ = $("sync-status"); if(ss_) ss_.textContent = "Loading RSM data...";
 
     // 1. Fetch RSM_Master
     const masterUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=RSM_Master`;
     const masterRes = await fetch(masterUrl);
     if(!masterRes.ok) throw new Error("RSM_Master fetch failed");
     const masterCSV = await masterRes.text();
-    const masterRows = parseCSV(masterCSV).slice(2); // skip title + header rows
-
+    const allMasterRows = parseCSV(masterCSV);
+    // Auto-detect header row: skip rows until we find one with "rsm" or "name" in col A
+    let skipRows = 1;
+    for(let i=0;i<Math.min(3,allMasterRows.length);i++){
+      const cell = (allMasterRows[i][0]||"").toLowerCase().trim();
+      if(cell==="rsm name"||cell==="rsm"||cell==="name") { skipRows=i+1; break; }
+    }
+    const masterRows = allMasterRows.slice(skipRows).filter(r=>r[0]&&r[0].trim());
     if(!masterRows.length) throw new Error("No RSM master data");
 
     // Parse RSM master: Name,Zone,PIN,Role,SKUTotal,SKU10MRP,SKUPapdi,SKUChilli,SKUPuff,Active
@@ -2235,7 +2234,12 @@ async function loadRSMDataFromSheet() {
     // 2. Fetch entity data for current RSM's tab
     const curRSM = STATE.user?.name;
     const rsmInfo = rsmList.find(r=>r.name===curRSM);
-    if(!rsmInfo && STATE.user?.role!=="manager") throw new Error("RSM not found in master");
+    // For manager: continue even if not in RSM list (manager reads all tabs)
+    if(!rsmInfo && STATE.user?.role!=="manager") {
+      console.warn("RSM not in master sheet:", curRSM, "— using data.js fallback");
+      $("sync-status") && ($("sync-status").textContent = "");
+      return false;
+    }
 
     // Determine which tabs to fetch
     const tabsToFetch = STATE.user?.role==="manager"
@@ -2254,7 +2258,15 @@ async function loadRSMDataFromSheet() {
         const entRes = await fetch(entUrl);
         if(!entRes.ok) continue;
         const entCSV = await entRes.text();
-        const entRows = parseCSV(entCSV).slice(3); // skip title, info, header rows
+        const allEntRows = parseCSV(entCSV);
+        // Auto-detect: find first row where col B is "SS" or "DB" or col B header
+        let entSkip = 1;
+        for(let i=0;i<Math.min(4,allEntRows.length);i++){
+          const b = (allEntRows[i][1]||"").trim().toUpperCase();
+          if(b==="SS"||b==="DB") { entSkip=i; break; }
+          if(b==="TYPE (SS/DB)"||b==="TYPE") { entSkip=i+1; break; }
+        }
+        const entRows = allEntRows.slice(entSkip).filter(r=>r[0]&&r[0].trim());
 
         const ss=[], dbs=[];
         entRows.forEach((r,i)=>{
@@ -2282,8 +2294,8 @@ async function loadRSMDataFromSheet() {
     localStorage.setItem(tsKey, Date.now().toString());
 
     _applyRSMData(rsmData);
-    $("sync-status").textContent = "RSM data updated ✓";
-    setTimeout(()=>$("sync-status").textContent="", 3000);
+    const ss2_ = $("sync-status"); if(ss2_) ss2_.textContent = "RSM data updated ✓";
+    const ss3_=$("sync-status"); setTimeout(()=>{if(ss3_)ss3_.textContent="";}, 3000);
     return true;
 
   } catch(e) {
@@ -2347,9 +2359,7 @@ async function loadHistoryFromSheet() { // returns Promise — always await or .
   const sheetId = STATE.sheetId;
   if(!sheetId || sheetId==="YOUR_SHEET_ID_HERE") return;
   try {
-    $("sync-status").textContent = "Loading your data from Sheet...";
-    $("hs-sec").textContent = "…";
-    $("hs-pri").textContent = "…";
+    const ss = $("sync-status"); if(ss) ss.textContent = "Loading data...";
     // Try public read first (no OAuth needed if Sheet is shared as Anyone can view)
     // Uses the export-as-csv endpoint — no API key required
     const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=5_History`;
@@ -2373,7 +2383,7 @@ async function loadHistoryFromSheet() { // returns Promise — always await or .
       }
     }
 
-    if(!rows.length){ $("sync-status").textContent="No data found in 5_History sheet"; return; }
+    if(!rows.length){ const _ss3=document.getElementById("sync-status");if(_ss3)_ss3.textContent="No data found in Sheet"; return; }
 
     const rsmName = STATE.user.name;
     const master = MASTER[rsmName];
@@ -2422,7 +2432,7 @@ async function loadHistoryFromSheet() { // returns Promise — always await or .
     if(Object.keys(newHist).length > 0){
       STATE.history = newHist;
       saveLocalData();
-      $("sync-status").textContent = `History loaded — ${rows.length} rows ✓`;
+      const _ss2=document.getElementById("sync-status");if(_ss2)_ss2.textContent=`History loaded ✓`;
     } else {
       $("sync-status").textContent = "Sheet connected but no matching data found";
       console.warn("No entities matched. Check RSM name in Sheet matches data.js exactly.");
