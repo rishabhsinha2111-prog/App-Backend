@@ -299,11 +299,39 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
 
       <!-- PJP -->
       <div id="scr-pjp" class="scr">
-        <div class="slbl" style="margin-top:0">Month</div>
-        <div class="pill-row" id="pjp-months"></div>
-        <div id="pjp-exec-bar" style="margin-bottom:10px"></div>
-        <div class="slbl">Mark visits</div>
-        <div id="pjp-list"></div>
+        <!-- Execution summary card -->
+        <div id="pjp-exec-bar" style="margin-bottom:8px"></div>
+        <!-- Week selector pills -->
+        <div class="pill-row" id="pjp-weeks" style="margin-bottom:8px"></div>
+        <!-- Today's visits strip -->
+        <div id="pjp-today" style="margin-bottom:8px"></div>
+        <!-- Past days collapsed -->
+        <div id="pjp-past" style="margin-bottom:8px"></div>
+        <!-- Upcoming days -->
+        <div id="pjp-upcoming" style="margin-bottom:8px"></div>
+        <!-- Add ad-hoc visit -->
+        <div style="padding:10px;background:var(--bg);border-radius:var(--r);text-align:center;border:1px dashed var(--border);margin-bottom:8px;cursor:pointer" onclick="showAddVisit()">
+          <span style="font-size:13px;color:var(--text2)">+ Add ad-hoc visit</span>
+        </div>
+        <!-- Add visit form (hidden by default) -->
+        <div id="pjp-add-form" style="display:none" class="card">
+          <div class="card-title">Add ad-hoc visit</div>
+          <div class="field">
+            <label class="field-label">Entity name</label>
+            <input type="text" id="adhoc-name" placeholder="DB or SS name">
+          </div>
+          <div class="field">
+            <label class="field-label">Day</label>
+            <select id="adhoc-day">
+              <option>Mon</option><option>Tue</option><option>Wed</option>
+              <option>Thu</option><option>Fri</option><option>Sat</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-brand" style="flex:1" onclick="saveAdHocVisit()">Add</button>
+            <button class="btn btn-out" style="flex:1" onclick="$('pjp-add-form').style.display='none'">Cancel</button>
+          </div>
+        </div>
       </div>
 
       <!-- SETTINGS -->
@@ -366,8 +394,8 @@ const FY_MONTHS_ORDER = MONTHS;
 const MONTH_TO_QTR = {Apr:"Q1",May:"Q1",Jun:"Q1",Jul:"Q2",Aug:"Q2",Sep:"Q2",Oct:"Q3",Nov:"Q3",Dec:"Q3",Jan:"Q4",Feb:"Q4",Mar:"Q4"};
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat"];
 // Focus SKU constants — always defined here so they're available before data.js
-const FOCUS_SKUS     = ["10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
-const FOCUS_SKU_KEYS = ["mrp10","papdiGathiya","chilliWheel","puffGarlic"];
+const FOCUS_SKUS     = ["Total","10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
+const FOCUS_SKU_KEYS = ["total","mrp10","papdiGathiya","chilliWheel","puffGarlic"];
 
 // ── USER STORE + MASTER DATA ──────────────────────────────────
 // Loaded from data.js — edit that file to change RSMs/PINs/DBs
@@ -1745,80 +1773,334 @@ function toggleEnt(id) {
 }
 
 // ── PJP EXECUTION ─────────────────────────────────────────────
+// ── PJP — LOAD FROM SHEET ────────────────────────────────────
+async function loadPJPFromSheet() {
+  const sheetId = STATE.sheetId;
+  if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return;
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=3_PJP_Output`;
+    const res = await fetch(url);
+    if(!res.ok) return;
+    const csv = await res.text();
+    const rows = parseCSV(csv).slice(1); // skip header
+    if(!rows.length) return;
+
+    const rsmName = STATE.user.name;
+    const visits = {};
+    rows.forEach(r=>{
+      if(!r[0]) return;
+      if(r[0].toLowerCase().trim() !== rsmName) return;
+      // Cols: A=RSM, B=Zone, C=Day, D=DB, E=SS, F=Town, G=SecPct, H=PriPct, I=Score, J=Flag
+      const day   = (r[2]||"").trim();
+      const db    = (r[3]||"").trim();
+      const ss    = (r[4]||"").trim();
+      const town  = (r[5]||"").trim();
+      const score = parseInt(r[8])||0;
+      const flag  = (r[9]||"").trim();
+      const mustVisit = flag==="MUST VISIT";
+      // Derive week label from current week
+      const wk = _autoWeekLabel();
+      if(!visits[wk]) visits[wk] = [];
+      visits[wk].push({
+        week:wk, day, db, ss, town, score, mustVisit,
+        status:"pending", note:"", lat:null, lng:null, geoTs:null, adhoc:false
+      });
+    });
+
+    // Merge with existing — don't overwrite already marked visits
+    if(!STATE.pjpExec) STATE.pjpExec = {};
+    const curWk = _autoWeekLabel();
+    if(visits[curWk]?.length) {
+      const existing = STATE.pjpExec[curWk]||[];
+      visits[curWk].forEach(v=>{
+        const match = existing.find(e=>e.db===v.db && e.day===v.day);
+        if(match) { v.status=match.status; v.note=match.note||""; v.lat=match.lat; v.lng=match.lng; }
+      });
+      STATE.pjpExec[curWk] = visits[curWk];
+      saveLocalData();
+    }
+    console.log("PJP loaded from Sheet:", visits[curWk]?.length||0, "visits");
+  } catch(e){ console.log("PJP load error:",e); }
+}
+
+// ── PJP — RENDER ─────────────────────────────────────────────
 function renderPJP() {
-  const u = STATE.user;
-  const exec = STATE.pjpExec;
-  const months = Object.keys(exec).sort((a,b)=>MONTHS.indexOf(a)-MONTHS.indexOf(b));
-  if(!months.includes(STATE.curPJPMonth)&&months.length) STATE.curPJPMonth=months[months.length-1];
-
-  $("pjp-months").innerHTML = months.map(m=>`
-    <button class="pill ${m===STATE.curPJPMonth?"active":""}" onclick="selectPJPMonth('${m}',this)">${m}</button>`).join("");
-  renderPJPList();
+  if(navigator.onLine) loadPJPFromSheet().then(()=>_renderPJPView());
+  else _renderPJPView();
 }
 
-function selectPJPMonth(m,btn) {
-  STATE.curPJPMonth=m;
-  document.querySelectorAll("#pjp-months .pill").forEach(p=>p.classList.remove("active"));
-  btn.classList.add("active");
-  renderPJPList();
+function _renderPJPView() {
+  const exec = STATE.pjpExec||{};
+  const weeks = Object.keys(exec).sort();
+  if(!weeks.length) {
+    // Seed from current week
+    STATE.pjpExec = STATE.pjpExec||{};
+    const wk = _autoWeekLabel();
+    if(!STATE.pjpExec[wk]) STATE.pjpExec[wk] = _seedPJPWeek();
+    weeks.push(wk);
+  }
+  if(!STATE.curPJPWeek||!weeks.includes(STATE.curPJPWeek))
+    STATE.curPJPWeek = weeks[weeks.length-1];
+
+  // Week pills
+  $("pjp-weeks").innerHTML = weeks.map(w=>`
+    <button class="pill ${w===STATE.curPJPWeek?"active":""}"
+      onclick="selectPJPWeek('${w}',this)">${w}</button>`).join("");
+
+  _renderPJPWeek();
 }
 
-function renderPJPList() {
-  const visits = (STATE.pjpExec[STATE.curPJPMonth]||[]);
-  const done=visits.filter(v=>v.status==="done").length;
-  const missed=visits.filter(v=>v.status==="missed").length;
-  const pending=visits.filter(v=>v.status==="pending").length;
-  const ep=visits.length?Math.round(done/visits.length*100):0;
-
-  $("pjp-exec-bar").innerHTML=`<div class="card">
-    <div style="display:flex;justify-content:space-between;margin-bottom:7px">
-      <span style="font-weight:700;font-size:14px">${STATE.curPJPMonth} execution</span>
-      <span class="b ${pcls(ep)}">${ep}%</span>
-    </div>
-    <div class="pbar" style="height:7px"><div class="pf" style="width:${ep}%;background:${bcol(ep)}"></div></div>
-    <div style="display:flex;gap:12px;margin-top:8px;font-size:12px">
-      <span style="color:var(--green);font-weight:700">${done} done</span>
-      <span style="color:var(--red);font-weight:700">${missed} missed</span>
-      <span style="color:var(--text2)">${pending} upcoming</span>
-    </div>
-  </div>`;
-
-  const byWeek={};
-  visits.forEach(v=>{
-    if(!byWeek[v.week]) byWeek[v.week]=[];
-    byWeek[v.week].push(v);
+function _seedPJPWeek() {
+  const master = MASTER[STATE.user.name];
+  if(!master) return [];
+  const wk = _autoWeekLabel();
+  const visits = [];
+  DAYS.forEach((day,di)=>{
+    master.dbs.forEach((db,i)=>{
+      if((di+i)%3===0) {
+        const ss = master.ss[i%master.ss.length]||{name:"—"};
+        visits.push({week:wk,day,db:db.name,ss:ss.name,town:db.area,
+          score:Math.round(Math.random()*60+20),mustVisit:db.mustVisit,
+          status:"pending",note:"",lat:null,lng:null,geoTs:null,adhoc:false});
+      }
+    });
   });
+  return visits;
+}
 
-  $("pjp-list").innerHTML = Object.entries(byWeek).map(([week,wv])=>`
-    <div class="card" style="margin-bottom:8px">
-      <div class="card-title">${week}
-        <span class="b b-gray">${wv.filter(v=>v.status==="done").length}/${wv.length}</span>
+function selectPJPWeek(w,btn) {
+  STATE.curPJPWeek = w;
+  document.querySelectorAll("#pjp-weeks .pill").forEach(p=>p.classList.remove("active"));
+  btn.classList.add("active");
+  _renderPJPWeek();
+}
+
+function _renderPJPWeek() {
+  const visits = STATE.pjpExec[STATE.curPJPWeek]||[];
+  const done   = visits.filter(v=>v.status==="done").length;
+  const missed = visits.filter(v=>v.status==="missed").length;
+  const ep     = visits.length ? Math.round(done/visits.length*100) : 0;
+
+  // Execution summary
+  $("pjp-exec-bar").innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span style="font-weight:700;font-size:14px">${STATE.curPJPWeek}</span>
+        <span class="b ${pcls(ep)}">${ep}% done</span>
       </div>
-      ${wv.map((v,i)=>`<div class="vrow" ${i===0?"style='padding-top:0'":""}>
-        <button class="chk ${v.status==="done"?"done":v.status==="missed"?"missed":""}"
-          onclick="cycleStatus('${STATE.curPJPMonth}','${week}',${i})">
-          ${v.status==="done"?"✓":v.status==="missed"?"✗":"○"}
-        </button>
-        <div class="av av-g">${v.db.slice(0,2).toUpperCase()}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-            ${v.db}${v.mustVisit?` <span class="b b-a" style="font-size:10px">Must visit</span>`:""}
-          </div>
-          <div style="font-size:11px;color:var(--text2)">${v.ss} · ${v.day}</div>
+      <div class="pbar" style="height:6px">
+        <div class="pf" style="width:${ep}%;background:${bcol(ep)}"></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:7px;font-size:12px">
+        <span style="color:var(--green);font-weight:700">${done} done</span>
+        <span style="color:var(--red);font-weight:700">${missed} missed</span>
+        <span style="color:var(--text2)">${visits.length-done-missed} upcoming</span>
+      </div>
+    </div>`;
+
+  // Group by day
+  const byDay = {};
+  DAYS.forEach(d=>byDay[d]=[]);
+  visits.forEach(v=>{ if(byDay[v.day]) byDay[v.day].push(v); });
+
+  const todayName = DAY_NAMES[new Date().getDay()]; // Sun/Mon/...
+  const dayMap = {Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
+  const todayNum = new Date().getDay(); // 0=Sun,1=Mon...
+
+  // Today's visits
+  const todayDAY = Object.keys(dayMap).find(d=>dayMap[d]===todayNum)||"";
+  const todayVisits = byDay[todayDAY]||[];
+
+  if(todayVisits.length) {
+    $("pjp-today").innerHTML = `
+      <div style="background:var(--blue-bg);border-radius:var(--r);padding:12px 13px;border-left:3px solid var(--brand)">
+        <div style="font-size:11px;font-weight:700;color:var(--brand);margin-bottom:8px;letter-spacing:.04em">
+          TODAY — ${todayDAY.toUpperCase()}
         </div>
-        <span class="b ${v.score>=70?"b-r":v.score>=40?"b-a":"b-g"}" style="font-size:10px">${v.score}pts</span>
-      </div>`).join("")}
-    </div>`).join("");
+        ${todayVisits.map((v,i)=>_visitRow(v,i,todayDAY,true)).join("")}
+      </div>`;
+  } else {
+    $("pjp-today").innerHTML = `
+      <div style="background:var(--bg);border-radius:var(--r);padding:10px 13px;border:1px solid var(--border);text-align:center;font-size:12px;color:var(--text2)">
+        No visits scheduled for today
+      </div>`;
+  }
+
+  // Past days
+  const pastDays = DAYS.filter(d=>dayMap[d]<todayNum && byDay[d].length);
+  $("pjp-past").innerHTML = pastDays.length ? `
+    <div class="slbl">Past days</div>
+    ${pastDays.map(d=>_dayBlock(d, byDay[d], false)).join("")}` : "";
+
+  // Upcoming days
+  const upcomingDays = DAYS.filter(d=>dayMap[d]>todayNum && byDay[d].length);
+  $("pjp-upcoming").innerHTML = upcomingDays.length ? `
+    <div class="slbl">Upcoming</div>
+    ${upcomingDays.map(d=>_dayBlock(d, byDay[d], false)).join("")}` : "";
 }
 
-function cycleStatus(month,week,idx) {
-  const wv=(STATE.pjpExec[month]||[]).filter(v=>v.week===week);
-  if(!wv[idx]) return;
-  const s=wv[idx].status;
-  wv[idx].status=s==="pending"?"done":s==="done"?"missed":"pending";
-  saveLocalData();
-  renderPJPList();
+function _dayBlock(day, visits, expanded) {
+  const done   = visits.filter(v=>v.status==="done").length;
+  const missed = visits.filter(v=>v.status==="missed").length;
+  const isOpen = STATE.pjpDayOpen?.[day] || expanded;
+  const statusBadge = done===visits.length
+    ? `<span class="b b-g">${done}/${visits.length}</span>`
+    : missed===visits.length
+    ? `<span class="b b-r">${done}/${visits.length}</span>`
+    : (done+missed)>0
+    ? `<span class="b b-a">${done}/${visits.length}</span>`
+    : `<span class="b b-gray">${done}/${visits.length}</span>`;
+
+  return `<div style="margin-bottom:6px">
+    <div style="background:var(--brand2);border-radius:${isOpen?"var(--r) var(--r) 0 0":"var(--r)"};padding:9px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer"
+         onclick="togglePJPDay('${day}')">
+      <span style="font-size:13px;font-weight:700;color:#fff">${day}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${statusBadge}
+        <span style="color:rgba(255,255,255,.4);font-size:14px">${isOpen?"▾":"▸"}</span>
+      </div>
+    </div>
+    ${isOpen?`<div style="background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);padding:0 12px">
+      ${visits.map((v,i)=>_visitRow(v,i,day,false)).join("")}
+    </div>`:""}
+  </div>`;
 }
+
+function _visitRow(v, i, day, inToday) {
+  const isFirst = i===0;
+  const statusIcon = v.status==="done"?"✓":v.status==="missed"?"✗":"○";
+  const statusCls  = v.status==="done"?"done":v.status==="missed"?"missed":"";
+  const scoreCls   = v.score>=70?"b-r":v.score>=40?"b-a":"b-g";
+  const geoTag     = v.lat ? `<span style="font-size:9px;color:var(--green)">📍 ${v.lat.toFixed(4)},${v.lng.toFixed(4)}</span>` : "";
+
+  return `<div style="padding:${isFirst?"8px 0 8px":"8px 0"};border-bottom:${i===999?"none":"1px solid var(--border)"}">
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="chk ${statusCls}"
+        onclick="markVisit('${day}',${i},'${v.status}')">
+        ${statusIcon}
+      </button>
+      <div class="av av-g">${(v.db||"?").slice(0,2).toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${v.db}${v.mustVisit?` <span class="b b-a" style="font-size:9px">Must</span>`:""}
+          ${v.adhoc?` <span class="b b-b" style="font-size:9px">Ad-hoc</span>`:""}
+        </div>
+        <div style="font-size:10px;color:var(--text2)">${v.ss} · ${v.day} · ${v.score}pts</div>
+        ${geoTag}
+      </div>
+      <span class="b ${scoreCls}" style="font-size:9px">${
+        v.status==="done"?"Done":v.status==="missed"?"Missed":"Pending"
+      }</span>
+    </div>
+    ${v.note?`<div style="margin-top:5px;padding:5px 8px;background:var(--bg);border-radius:6px;font-size:11px;color:var(--text2)">${v.note}</div>`:""}
+  </div>`;
+}
+
+function togglePJPDay(day) {
+  if(!STATE.pjpDayOpen) STATE.pjpDayOpen = {};
+  STATE.pjpDayOpen[day] = !STATE.pjpDayOpen[day];
+  _renderPJPWeek();
+}
+
+// ── MARK VISIT WITH GEOTAG ────────────────────────────────────
+function markVisit(day, idx, curStatus) {
+  const visits = STATE.pjpExec[STATE.curPJPWeek]||[];
+  const dayVisits = visits.filter(v=>v.day===day);
+  const v = dayVisits[idx];
+  if(!v) return;
+
+  const nextStatus = curStatus==="pending"?"done":curStatus==="done"?"missed":"pending";
+
+  if(nextStatus==="done") {
+    // Capture GPS when marking done
+    if(navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos=>{
+          v.status = "done";
+          v.lat    = pos.coords.latitude;
+          v.lng    = pos.coords.longitude;
+          v.geoTs  = new Date().toISOString();
+          _afterMarkVisit(v, day);
+        },
+        err=>{
+          // GPS failed — still mark done but without location
+          v.status = "done";
+          v.lat = null; v.lng = null;
+          _afterMarkVisit(v, day);
+        },
+        {timeout:5000, enableHighAccuracy:true}
+      );
+    } else {
+      v.status = "done";
+      _afterMarkVisit(v, day);
+    }
+  } else if(nextStatus==="missed") {
+    // Show note prompt for missed visits
+    const reason = prompt(`Why was ${v.db} missed? (optional)`)||"";
+    v.status = "missed";
+    v.note   = reason;
+    v.lat = null; v.lng = null;
+    _afterMarkVisit(v, day);
+  } else {
+    v.status = "pending";
+    v.note   = "";
+    v.lat = null; v.lng = null;
+    _afterMarkVisit(v, day);
+  }
+}
+
+function _afterMarkVisit(v, day) {
+  saveLocalData();
+  // Sync to Sheet
+  if(navigator.onLine) syncPJPToSheet(v);
+  _renderPJPWeek();
+  // Update home score
+  renderHome();
+}
+
+async function syncPJPToSheet(visit) {
+  const sheetId = STATE.sheetId;
+  if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return;
+  try {
+    const token = await getGoogleToken();
+    if(!token) return;
+    const row = [
+      STATE.user.name, visit.week, visit.day, visit.db, visit.ss,
+      visit.status, visit.note||"",
+      visit.lat||"", visit.lng||"", visit.geoTs||"",
+      new Date().toISOString()
+    ];
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/PJP_Execution!A:K:append?valueInputOption=USER_ENTERED`;
+    await fetch(url,{method:"POST",
+      headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+      body:JSON.stringify({values:[row]})});
+  } catch(e){ console.log("PJP sync error:",e); }
+}
+
+// ── AD-HOC VISIT ──────────────────────────────────────────────
+function showAddVisit() {
+  const f = $("pjp-add-form");
+  f.style.display = f.style.display==="none"?"block":"none";
+}
+
+function saveAdHocVisit() {
+  const name = $("adhoc-name").value.trim();
+  const day  = $("adhoc-day").value;
+  if(!name) return;
+  const wk = STATE.curPJPWeek || _autoWeekLabel();
+  if(!STATE.pjpExec[wk]) STATE.pjpExec[wk]=[];
+  STATE.pjpExec[wk].push({
+    week:wk, day, db:name, ss:"Ad-hoc", town:"",
+    score:0, mustVisit:false, status:"pending",
+    note:"", lat:null, lng:null, geoTs:null, adhoc:true
+  });
+  saveLocalData();
+  $("adhoc-name").value="";
+  $("pjp-add-form").style.display="none";
+  _renderPJPWeek();
+}
+
+
 
 // ── SETTINGS ──────────────────────────────────────────────────
 function saveSheetId() {
