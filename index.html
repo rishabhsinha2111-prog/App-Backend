@@ -426,15 +426,66 @@ function greeting() {
 }
 
 // ── AUTH ──────────────────────────────────────────────────────
-function doLogin() {
+async function doLogin() {
   const name = $("login-name").value.trim().toLowerCase();
   const pin  = $("login-pin").value.trim();
+
+  // First check local USERS (data.js — RSMs and manager)
+  if (USERS[name]) {
+    const user = USERS[name];
+    if (user.pin !== pin) {
+      $("login-err").textContent = "Name or PIN incorrect. Try again.";
+      return;
+    }
+    _completeLogin(name, pin, user);
+    return;
+  }
+
+  // Not found locally — try fetching fresh from Sheet (for SOs)
+  $("login-err").textContent = "Checking...";
+  const sheetId = STATE.sheetId || localStorage.getItem("sheetId");
+  if (sheetId && sheetId !== "YOUR_SHEET_ID_HERE") {
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=RSM_Master`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const csv = await res.text();
+        const rows = parseCSV(csv);
+        // Auto detect header row
+        let skip = 1;
+        for(let i=0;i<Math.min(3,rows.length);i++){
+          const cell=(rows[i][0]||"").toLowerCase().trim();
+          if(cell==="rsm name"||cell==="rsm"||cell==="name"){skip=i+1;break;}
+        }
+        const masterRows = rows.slice(skip).filter(r=>r[0]&&r[0].trim());
+        masterRows.forEach(r=>{
+          const rName = r[0].trim().toLowerCase();
+          const role  = (r[3]||"rsm").toLowerCase();
+          USERS[rName] = {
+            zone: r[1]||"",
+            pin:  r[2]||"",
+            role: role,
+            parentRSM: role==="so" ? (r[10]||"").trim().toLowerCase() : null
+          };
+        });
+      }
+    } catch(e) { console.log("Sheet login fetch error:", e); }
+  }
+
+  // Check again after Sheet fetch
   const user = USERS[name];
   if (!user || user.pin !== pin) {
     $("login-err").textContent = "Name or PIN incorrect. Try again.";
     return;
   }
+  _completeLogin(name, pin, user);
+}
+
+function _completeLogin(name, pin, user) {
   STATE.user = {name, displayName: $("login-name").value.trim(), ...user};
+  // Store sheetId in STATE if available
+  const storedSheet = localStorage.getItem("sheetId");
+  if (storedSheet) STATE.sheetId = storedSheet;
   localStorage.setItem("lastUser", JSON.stringify(STATE.user));
   loadLocalData();
   startApp();
