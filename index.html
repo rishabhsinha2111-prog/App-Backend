@@ -689,6 +689,7 @@ function scoreLabel(s) {
 function renderHome() {
   const u = STATE.user;
   if(u.role==="manager"){ renderManagerHome(); return; }
+  // SO uses same home view as RSM — MASTER[so.name] is already filtered to their DBs
 
   const master = MASTER[u.name];
   if(!master) return;
@@ -2210,22 +2211,23 @@ async function loadRSMDataFromSheet() {
     const masterRows = allMasterRows.slice(skipRows).filter(r=>r[0]&&r[0].trim());
     if(!masterRows.length) throw new Error("No RSM master data");
 
-    // Parse RSM master: Name,Zone,PIN,Role,SKUTotal,SKU10MRP,SKUPapdi,SKUChilli,SKUPuff,Active
+    // Parse RSM master: Name,Zone,PIN,Role,SKUTotal,SKU10MRP,SKUPapdi,SKUChilli,SKUPuff,Active,ParentRSM(for SOs)
     const rsmList = [];
     masterRows.forEach(r=>{
       if(!r[0]||r[0].trim()==="") return;
       if((r[9]||"").toString().toLowerCase()==="no") return; // skip inactive
+      const role = (r[3]||"rsm").toLowerCase();
       rsmList.push({
-        name:  r[0].trim().toLowerCase(),
-        zone:  r[1]||"",
-        pin:   r[2]||"1234",
-        role:  (r[3]||"rsm").toLowerCase(),
+        name:       r[0].trim().toLowerCase(),
+        zone:       r[1]||"",
+        pin:        r[2]||"1234",
+        role:       role,
+        parentRSM:  role==="so" ? (r[10]||"").trim().toLowerCase() : null,
         skuTgt:{
-          total:     +r[4]||0,
-          mrp10:     +r[5]||0,
-          papdiGathiya:+r[6]||0,
-          chilliWheel: +r[7]||0,
-          puffGarlic:  +r[8]||0,
+          mrp10:        +r[4]||0,
+          papdiGathiya: +r[5]||0,
+          chilliWheel:  +r[6]||0,
+          puffGarlic:   +r[7]||0,
         }
       });
     });
@@ -2277,10 +2279,11 @@ async function loadRSMDataFromSheet() {
           const priTgt  = +r[4]||0;
           const secTgt  = +r[5]||0;
           const mustVis = (r[6]||"").toString().toLowerCase()==="yes";
+          const soName  = (r[7]||"").trim().toLowerCase(); // SO Name column
           const id      = `${type.toLowerCase()}_${rsmName.replace(/\s/g,"_").slice(0,3)}_${i+1}`;
 
-          if(type==="SS") ss.push({id, name, town, secTgt, priTgt, area, mustVisit:mustVis});
-          else dbs.push({id, name, ssId:"", priTgt, secTgt, area, mustVisit:mustVis});
+          if(type==="SS") ss.push({id, name, town, secTgt, priTgt, area, mustVisit:mustVis, soName});
+          else dbs.push({id, name, ssId:"", priTgt, secTgt, area, mustVisit:mustVis, soName});
         });
         entityMap[rsmName] = {ss, dbs};
       } catch(e){ console.log("Entity fetch failed for",rsmName,e); }
@@ -2308,9 +2311,12 @@ async function loadRSMDataFromSheet() {
 function _applyRSMData(rsmData) {
   if(!rsmData?.rsmList?.length) return;
 
-  // Override USERS with Sheet data
+  // Override USERS with Sheet data (RSMs, managers, and SOs)
   rsmData.rsmList.forEach(r=>{
-    if(window.USERS) USERS[r.name] = {zone:r.zone, pin:r.pin, role:r.role};
+    if(window.USERS) USERS[r.name] = {
+      zone: r.zone, pin: r.pin, role: r.role,
+      parentRSM: r.parentRSM || null  // SO's parent RSM name
+    };
   });
 
   // Override MASTER with Sheet entity data
@@ -2318,18 +2324,38 @@ function _applyRSMData(rsmData) {
     if(window.MASTER) MASTER[rsmName] = data;
   });
 
+  // Build filtered MASTER for SOs
+  // Each SO gets a MASTER entry filtered to only their mapped DBs/SSs
+  rsmData.rsmList.filter(r=>r.role==="so").forEach(soUser=>{
+    if(!soUser.parentRSM) return;
+    const parentMaster = MASTER[soUser.parentRSM];
+    if(!parentMaster) return;
+    // Filter to entities where soName matches
+    MASTER[soUser.name] = {
+      dbs: parentMaster.dbs.filter(db=>
+        (db.soName||"").toLowerCase() === soUser.name.toLowerCase()
+      ),
+      ss: parentMaster.ss.filter(ss=>
+        (ss.soName||"").toLowerCase() === soUser.name.toLowerCase()
+      )
+    };
+    console.log(`SO ${soUser.name}: ${MASTER[soUser.name].dbs.length} DBs, ${MASTER[soUser.name].ss.length} SS`);
+  });
+
   // Override FOCUS_SKU_TARGETS with Sheet data
   rsmData.rsmList.forEach(r=>{
     if(window.FOCUS_SKU_TARGETS && r.skuTgt) {
       FOCUS_SKU_TARGETS[r.name] = {
-        month: "current",
-        fy: "current",
-        ...r.skuTgt
+        month: "current", fy: "current", ...r.skuTgt
       };
+      // SOs inherit parent RSM's SKU targets
+      if(r.role==="so" && r.parentRSM && window.FOCUS_SKU_TARGETS[r.parentRSM]) {
+        FOCUS_SKU_TARGETS[r.name] = {...FOCUS_SKU_TARGETS[r.parentRSM]};
+      }
     }
   });
 
-  console.log("RSM data applied from Sheet:", rsmData.rsmList.length, "RSMs");
+  console.log("RSM data applied from Sheet:", rsmData.rsmList.length, "users");
 }
 
 // ── CSV parser for public Sheet read ─────────────────────────
