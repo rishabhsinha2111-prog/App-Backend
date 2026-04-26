@@ -2379,18 +2379,22 @@ function _applyRSMData(rsmData) {
     if(window.MASTER) MASTER[rsmName] = data;
   });
 
-  // Build filtered MASTER for SOs
   // Each SO gets a MASTER entry filtered to only their mapped DBs/SSs
+  // Use entityMap (freshly loaded from Sheet) not MASTER (may be stale from data.js)
   rsmData.rsmList.filter(r=>r.role==="so").forEach(soUser=>{
     if(!soUser.parentRSM) return;
-    const parentMaster = MASTER[soUser.parentRSM];
-    if(!parentMaster) return;
-    // Filter to entities where soName matches
+    // Get parent's entities from the freshly loaded entityMap
+    const parentEntities = rsmData.entityMap?.[soUser.parentRSM];
+    if(!parentEntities) {
+      console.log(`SO ${soUser.name}: parent RSM ${soUser.parentRSM} not in entityMap`);
+      return;
+    }
+    // Filter to entities where soName matches this SO
     MASTER[soUser.name] = {
-      dbs: parentMaster.dbs.filter(db=>
+      dbs: parentEntities.dbs.filter(db=>
         (db.soName||"").toLowerCase() === soUser.name.toLowerCase()
       ),
-      ss: parentMaster.ss.filter(ss=>
+      ss: parentEntities.ss.filter(ss=>
         (ss.soName||"").toLowerCase() === soUser.name.toLowerCase()
       )
     };
@@ -2466,13 +2470,17 @@ async function loadHistoryFromSheet() { // returns Promise — always await or .
     if(!rows.length){ const _ss3=document.getElementById("sync-status");if(_ss3)_ss3.textContent="No data found in Sheet"; return; }
 
     const rsmName = STATE.user.name;
+    // For SOs, history is stored under parent RSM name in the Sheet
+    const historyRSMName = STATE.user.role==="so" && STATE.user.parentRSM
+      ? STATE.user.parentRSM
+      : rsmName;
     const master = MASTER[rsmName];
     if(!master) return;
     const newHist = {};
 
     rows.forEach(r=>{
       if(!r[0]) return;
-      if(r[0].toLowerCase().trim() !== rsmName) return;
+      if(r[0].toLowerCase().trim() !== historyRSMName) return;
       const entityType = (r[1]||"").trim().toUpperCase(); // SS or DB
       const entityName = (r[2]||"").trim();
       const weekLabel  = (r[4]||"Monthly").trim();
