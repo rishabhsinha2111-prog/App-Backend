@@ -2287,16 +2287,20 @@ async function loadRSMDataFromSheet() {
     const curRSM = STATE.user?.name;
     const rsmInfo = rsmList.find(r=>r.name===curRSM);
     // For manager: continue even if not in RSM list (manager reads all tabs)
-    if(!rsmInfo && STATE.user?.role!=="manager") {
+    if(!rsmInfo && STATE.user?.role!=="manager" && STATE.user?.role!=="so") {
       console.warn("RSM not in master sheet:", curRSM, "— using data.js fallback");
       $("sync-status") && ($("sync-status").textContent = "");
       return false;
     }
 
     // Determine which tabs to fetch
+    // SO: fetch parent RSM's tab (their entities live there)
+    const curRSMInfo = rsmList.find(r=>r.name===curRSM);
     const tabsToFetch = STATE.user?.role==="manager"
       ? rsmList.filter(r=>r.role==="rsm").map(r=>r.name)
-      : [curRSM];
+      : STATE.user?.role==="so" && curRSMInfo?.parentRSM
+      ? [curRSMInfo.parentRSM]  // SO fetches parent RSM's tab
+      : [curRSM];               // RSM fetches own tab
 
     const entityMap = {};
     for(const rsmName of tabsToFetch) {
