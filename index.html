@@ -884,7 +884,8 @@ function _getMTDStats(rsmName) {
 }
 
 function _getSKUStats(rsmName) {
-  const tgts = FOCUS_SKU_TARGETS[rsmName]||{mrp10:0,papdiGathiya:0,chilliWheel:0,puffGarlic:0};
+  const _skuTgts = (typeof FOCUS_SKU_TARGETS !== "undefined") ? FOCUS_SKU_TARGETS : {};
+  const tgts = _skuTgts[rsmName]||{mrp10:0,papdiGathiya:0,chilliWheel:0,puffGarlic:0};
   const curMonth=curMonthStr(), curYr=curYearNum();
   const skuKeys=["mrp10","papdiGathiya","chilliWheel","puffGarlic"];
   let totalAch=0, totalTgt=0;
@@ -3099,18 +3100,28 @@ async function loadHistoryFromSheet() { // returns Promise — always await or .
     const historyRSMName = STATE.user.role==="so" && STATE.user.parentRSM
       ? STATE.user.parentRSM
       : rsmName;
-    const master = MASTER[rsmName];
+    // For manager, load all RSMs' history
+    const isManager = STATE.user.role==="manager";
+    const master = isManager ? MASTER : MASTER[rsmName];
     if(!master) return;
     const newHist = {};
+    const validRSMNames = isManager ? new Set(Object.keys(MASTER)) : null;
 
     rows.forEach(r=>{
       if(!r[0]) return;
-      if(r[0].toLowerCase().trim() !== historyRSMName) return;
+      const rowRSM = r[0].toLowerCase().trim();
+      if(isManager) {
+        if(!validRSMNames.has(rowRSM)) return; // skip rows not matching any RSM
+      } else {
+        if(rowRSM !== historyRSMName) return;
+      }
       const entityType = (r[1]||"").trim().toUpperCase(); // SS or DB
       const entityName = (r[2]||"").trim();
       const weekLabel  = (r[4]||"Monthly").trim();
       const month      = (r[6]||"").trim();
       const fy         = (r[8]||"").trim();
+      // For manager: find entity across all RSM masters
+      const rowRSMForMatch = r[0].toLowerCase().trim();
       // Values in Sheet are in lakhs — multiply by 100000
       const cleanNum = s => parseFloat((s||"0").toString().replace(/[₹,\s]/g,""))||0;
       const achieved = cleanNum(r[10]) * 100000;
@@ -3122,13 +3133,15 @@ async function loadHistoryFromSheet() { // returns Promise — always await or .
                           ? rawPct / 100
                           : (target > 0 ? achieved / target : null);
 
-      // Match to entity id
+      // Match to entity id — for manager use rowRSMForMatch to find correct RSM's master
+      const _matchMaster = isManager ? MASTER[rowRSMForMatch] : master;
+      if(!_matchMaster) return;
       let entId = null;
       if(entityType==="SS"){
-        const ss = master.ss.find(s=>s.name.toLowerCase()===entityName.toLowerCase());
+        const ss = _matchMaster.ss.find(s=>s.name.toLowerCase()===entityName.toLowerCase());
         if(ss) entId = ss.id;
       } else {
-        const db = master.dbs.find(d=>d.name.toLowerCase()===entityName.toLowerCase());
+        const db = _matchMaster.dbs.find(d=>d.name.toLowerCase()===entityName.toLowerCase());
         if(db) entId = db.id;
       }
       if(!entId) return;
