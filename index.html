@@ -54,7 +54,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:var(--f);
 #body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px 80px}
 
 /* ── BOTTOM NAV ── */
-#bnav{display:flex;background:var(--card);border-top:1px solid var(--border);flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
+#bnav{display:flex;background:var(--card);border-top:1px solid var(--border);flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}#bnav-rsm,#bnav-admin{display:flex;width:100%;flex:1}
 .nb{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px 8px;gap:3px;cursor:pointer;border:none;background:transparent;font-family:var(--f);position:relative}
 .ni{font-size:20px;line-height:1}
 .nl{font-size:10px;color:var(--text2)}
@@ -357,7 +357,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
           <div class="nb-dot" id="dot-settings"></div>
         </button>
       </div>
-      <div id="bnav-admin" style="display:none;width:100%;display:none">
+      <div id="bnav-admin" style="display:none;width:100%">
         <button class="nb active" id="anb-home" onclick="adminGoTab('home')">
           <div class="ni">⌂</div><div class="nl" id="anl-home">Home</div>
         </button>
@@ -479,10 +479,12 @@ async function doLogin() {
 
 function _completeLogin(name, pin, user) {
   STATE.user = {name, displayName: $("login-name").value.trim(), ...user};
-  // Store sheetId in STATE if available
   const storedSheet = localStorage.getItem("sheetId");
   if (storedSheet) STATE.sheetId = storedSheet;
   localStorage.setItem("lastUser", JSON.stringify(STATE.user));
+  // Clear RSM data cache so fresh Sheet fetch happens for every login
+  localStorage.removeItem("rsmData_cache");
+  localStorage.removeItem("rsmData_ts");
   loadLocalData();
   startApp();
 }
@@ -494,8 +496,8 @@ function doLogout() {
   if(typeof ADMIN_STATE !== "undefined"){ ADMIN_STATE.tab="home"; }
   // Reset nav back to RSM nav
   const rsmNav=$("bnav-rsm"), admNav=$("bnav-admin");
-  if(rsmNav) rsmNav.style.display="flex";
-  if(admNav) admNav.style.display="none";
+  if(rsmNav) { rsmNav.style.display="flex"; rsmNav.style.flex="1"; }
+  if(admNav) { admNav.style.display="none"; admNav.style.flex=""; }
   // Reset to home screen
   document.querySelectorAll(".scr").forEach(s=>s.classList.remove("active"));
   const homeScr=$("scr-home"); if(homeScr) homeScr.classList.add("active");
@@ -862,12 +864,13 @@ function _kpi(lbl,val,sub){ return `<div style="background:var(--bg);border-radi
 // ── ADMIN INIT ────────────────────────────────────────────────
 function initAdminNav() {
   const rsm = $("bnav-rsm"), adm = $("bnav-admin");
-  if(rsm) rsm.style.display = "none";
-  if(adm) adm.style.display = "flex";
-  // Show pending badge
+  if(rsm) { rsm.style.display = "none"; rsm.style.flex = ""; }
+  if(adm) { adm.style.display = "flex"; adm.style.flex = "1"; }
   const pending = _getPendingDBs();
   const dot = $("dot-newdb");
   if(dot) dot.style.display = pending.length>0?"block":"none";
+  // Set home as active tab
+  adminGoTab("home");
 }
 
 function adminGoTab(tab) {
