@@ -1100,8 +1100,8 @@ function _renderAdminSSDB(rsmNames,cm,cy) {
       </div>
       <div style="margin-top:8px">
         <div style="font-size:10px;color:var(--text2);margin-bottom:4px">L3M trend</div>
-        <div style="display:flex;align-items:flex-end;gap:3px;height:24px">
-          ${r.l3m.map(m=>`<div style="flex:1;border-radius:2px 2px 0 0;height:${Math.max(m.pct,4)}%;background:${m.isCur?'var(--border)':_barColor(m.pct)}"></div>`).join("")}
+        <div style="display:flex;align-items:flex-end;gap:3px;height:32px;overflow:hidden">
+          ${r.l3m.map(m=>`<div style="flex:1;border-radius:2px 2px 0 0;height:${Math.round(Math.max(m.pct,4)*0.32)}px;background:${m.isCur?'var(--border)':_barColor(m.pct)}"></div>`).join("")}
         </div>
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-top:2px">
           ${r.l3m.map(m=>`<span>${m.mon}</span>`).join("")}
