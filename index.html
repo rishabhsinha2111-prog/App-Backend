@@ -889,28 +889,30 @@ function _getRSMList() {
 }
 
 function _getMTDStats(rsmName) {
-  const master=MASTER[rsmName]; if(!master) return {secAch:0,secTgt:0,priAch:0,priTgt:0,secPct:0,priPct:0};
+  const master=MASTER[rsmName]; if(!master) return {secAch:0,secTgt:0,priAch:0,priTgt:0,secPct:0,priPct:0,lmSec:0,yoy:0};
   const cm=curMonthStr(), cy=curYearNum();
+  const curFY=getFYFromMonth(cm,cy);
   let secTgt=0,secAch=0,priTgt=0,priAch=0;
   (master.ss||[]).forEach(ss=>{
     secTgt+=+ss.secTgt||0;
-    const md=(STATE.history||{})[ss.id]?.monthly?.[cm]?.[cy];
-    secAch+=md?(+md.sec||0):0;
+    const row=(STATE.history[ss.id]||[]).find(h=>h.month===cm&&h.fy===curFY&&h.weekLabel==="Monthly");
+    secAch+=row?(+row.achieved||0):0;
   });
   (master.dbs||[]).forEach(db=>{
     priTgt+=+db.priTgt||0;
-    const md=(STATE.history||{})[db.id]?.monthly?.[cm]?.[cy];
-    priAch+=md?(+md.pri||0):0;
+    const row=(STATE.history[db.id]||[]).find(h=>h.month===cm&&h.fy===curFY&&h.weekLabel==="Monthly");
+    priAch+=row?(+row.achieved||0):0;
   });
-  // Last month same-day estimate (full last month ach)
+  // Last month
   const lmDate=new Date(cy,new Date().getMonth()-1,1);
   const lm=CAL_MONTHS[lmDate.getMonth()], ly=lmDate.getFullYear();
+  const lmFY=getFYFromMonth(lm,ly);
   let lmSec=0;
   (master.ss||[]).forEach(ss=>{
-    const md=(STATE.history||{})[ss.id]?.monthly?.[lm]?.[ly];
-    lmSec+=md?(+md.sec||0):0;
+    const row=(STATE.history[ss.id]||[]).find(h=>h.month===lm&&h.fy===lmFY&&h.weekLabel==="Monthly");
+    lmSec+=row?(+row.achieved||0):0;
   });
-  const yoy = lmSec>0?Math.round((secAch-lmSec)/lmSec*100):0;
+  const yoy=lmSec>0?Math.round((secAch-lmSec)/lmSec*100):0;
   return {secAch,secTgt,priAch,priTgt,secPct:_pct(secAch,secTgt),priPct:_pct(priAch,priTgt),lmSec,yoy};
 }
 
@@ -920,10 +922,11 @@ function _getRouteStats(rsmName) {
   const planned=allDBs.reduce((s,db)=>s+(+db.vehicles||0),0);
   const target=allDBs.reduce((s,db)=>s+(+db.routeTarget||+db.vehicles||0),0);
   const cm=curMonthStr(), cy=curYearNum();
+  const curFY=getFYFromMonth(cm,cy);
   let active=0;
   allDBs.forEach(db=>{
-    const md=(STATE.history||{})[db.id]?.monthly?.[cm]?.[cy];
-    if(md&&(+md.sec||0)>0) active++;
+    const row=(STATE.history[db.id]||[]).find(h=>h.month===cm&&h.fy===curFY&&h.weekLabel==="Monthly");
+    if(row&&(+row.achieved||0)>0) active++;
   });
   return {active,planned,target};
 }
@@ -934,10 +937,11 @@ function _getSKUStats(rsmName) {
   const totalTgt=Object.values(tgts).reduce((s,v)=>s+(+v||0),0);
   const master=MASTER[rsmName]; if(!master) return {ach:0,tgt:totalTgt};
   const cm=curMonthStr(), cy=curYearNum();
+  const curFY=getFYFromMonth(cm,cy);
   let totalAch=0;
   [...(master.ss||[]),...(master.dbs||[])].forEach(e=>{
-    const md=(STATE.history||{})[e.id]?.monthly?.[cm]?.[cy];
-    if(md) totalAch+=["mrp10","papdiGathiya","chilliWheel","puffGarlic"].reduce((s,k)=>s+(+md[k]||0),0);
+    const row=(STATE.history[e.id]||[]).find(h=>h.month===cm&&h.fy===curFY&&h.weekLabel==="Monthly");
+    if(row) totalAch+=["mrp10","papdiGathiya","chilliWheel","puffGarlic"].reduce((s,k)=>s+(+row[k]||0),0);
   });
   return {ach:totalAch,tgt:totalTgt};
 }
@@ -947,11 +951,12 @@ function _getL3M(rsmName) {
   return [3,2,1,0].map(i=>{
     const d=new Date(now.getFullYear(),now.getMonth()-i,1);
     const mon=CAL_MONTHS[d.getMonth()], yr=d.getFullYear();
+    const fy=getFYFromMonth(mon,yr);
     const master=MASTER[rsmName]; if(!master) return {mon,pct:0,isCur:i===0};
     let tgt=0,ach=0;
     (master.ss||[]).forEach(ss=>{
-      const md=(STATE.history||{})[ss.id]?.monthly?.[mon]?.[yr];
-      tgt+=+ss.secTgt||0; ach+=md?(+md.sec||0):0;
+      const row=(STATE.history[ss.id]||[]).find(h=>h.month===mon&&h.fy===fy&&h.weekLabel==="Monthly");
+      tgt+=+ss.secTgt||0; ach+=row?(+row.achieved||0):0;
     });
     return {mon,pct:_pct(ach,tgt),isCur:i===0};
   });
@@ -3026,6 +3031,8 @@ async function loadHistoryFromSheet() { // returns Promise — always await or .
 
     console.log("Rows read from Sheet:", rows.length);
     console.log("Matched entities:", Object.keys(newHist).length);
+    console.log("History RSM name used:", historyRSMName);
+    console.log("Master entity count:", Object.keys(master).length || (master?.dbs?.length||0)+(master?.ss?.length||0));
     console.log("Sample row:", rows[0]);
 
     if(Object.keys(newHist).length > 0){
