@@ -491,7 +491,16 @@ function doLogout() {
   STATE.user         = null;
   STATE.history      = {};
   STATE.dailyEntries = {};
-  if(typeof ADMIN_STATE !== "undefined"){ ADMIN_STATE.view="overall"; ADMIN_STATE.sortBy="overall"; }
+  if(typeof ADMIN_STATE !== "undefined"){ ADMIN_STATE.tab="home"; }
+  // Reset nav back to RSM nav
+  const rsmNav=$("bnav-rsm"), admNav=$("bnav-admin");
+  if(rsmNav) rsmNav.style.display="flex";
+  if(admNav) admNav.style.display="none";
+  // Reset to home screen
+  document.querySelectorAll(".scr").forEach(s=>s.classList.remove("active"));
+  const homeScr=$("scr-home"); if(homeScr) homeScr.classList.add("active");
+  document.querySelectorAll(".nb").forEach(b=>b.classList.remove("active"));
+  const firstNav=document.querySelector("#bnav-rsm .nb"); if(firstNav) firstNav.classList.add("active");
   $("main-app").style.display     = "none";
   $("login-screen").style.display = "flex";
   $("login-name").value = "";
