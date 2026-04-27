@@ -468,10 +468,14 @@ function _completeLogin(name, pin, user) {
 }
 
 function doLogout() {
-  STATE.user = null;
-  $("main-app").style.display = "none";
+  STATE.user         = null;
+  STATE.history      = {};
+  STATE.dailyEntries = {};
+  if(typeof ADMIN_STATE !== "undefined"){ ADMIN_STATE.view="overall"; ADMIN_STATE.sortBy="overall"; }
+  $("main-app").style.display     = "none";
   $("login-screen").style.display = "flex";
-  $("login-pin").value = "";
+  $("login-name").value = "";
+  $("login-pin").value  = "";
   $("login-err").textContent = "";
 }
 
