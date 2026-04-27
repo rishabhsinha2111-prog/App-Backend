@@ -338,23 +338,43 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
     </div>
 
     <div id="bnav">
-      <button class="nb active" onclick="goScr('home')">
-        <div class="ni">⌂</div><div class="nl">Home</div>
-        <div class="nb-dot" id="dot-home"></div>
-      </button>
-      <button class="nb" onclick="goScr('tracker')">
-        <div class="ni">✎</div><div class="nl">Tracker</div>
-      </button>
-      <button class="nb" onclick="goScr('pjp')">
-        <div class="ni">✓</div><div class="nl">PJP</div>
-      </button>
-      <button class="nb" onclick="goScr('trends')">
-        <div class="ni">↗</div><div class="nl">Trends</div>
-      </button>
-      <button class="nb" onclick="goScr('settings')" id="nav-settings-btn">
-        <div class="ni">⊕</div><div class="nl" id="nav-settings-lbl">Add DB</div>
-        <div class="nb-dot" id="dot-settings"></div>
-      </button>
+      <div id="bnav-rsm">
+        <button class="nb active" onclick="goScr('home')">
+          <div class="ni">⌂</div><div class="nl">Home</div>
+          <div class="nb-dot" id="dot-home"></div>
+        </button>
+        <button class="nb" onclick="goScr('tracker')">
+          <div class="ni">✎</div><div class="nl">Tracker</div>
+        </button>
+        <button class="nb" onclick="goScr('pjp')">
+          <div class="ni">✓</div><div class="nl">PJP</div>
+        </button>
+        <button class="nb" onclick="goScr('trends')">
+          <div class="ni">↗</div><div class="nl">Trends</div>
+        </button>
+        <button class="nb" onclick="goScr('settings')" id="nav-settings-btn">
+          <div class="ni">⊕</div><div class="nl" id="nav-settings-lbl">Add DB</div>
+          <div class="nb-dot" id="dot-settings"></div>
+        </button>
+      </div>
+      <div id="bnav-admin" style="display:none;width:100%;display:none">
+        <button class="nb active" id="anb-home" onclick="adminGoTab('home')">
+          <div class="ni">⌂</div><div class="nl" id="anl-home">Home</div>
+        </button>
+        <button class="nb" id="anb-ssdb" onclick="adminGoTab('ssdb')">
+          <div class="ni">↑</div><div class="nl" id="anl-ssdb">SS-DB</div>
+        </button>
+        <button class="nb" id="anb-dbretail" onclick="adminGoTab('dbretail')">
+          <div class="ni">↗</div><div class="nl" id="anl-dbretail">DB-Retail</div>
+        </button>
+        <button class="nb" id="anb-routes" onclick="adminGoTab('routes')">
+          <div class="ni">◎</div><div class="nl" id="anl-routes">Routes</div>
+        </button>
+        <button class="nb" id="anb-newdb" onclick="adminGoTab('newdb')">
+          <div class="ni">⊕</div><div class="nl" id="anl-newdb">New DBs</div>
+          <div class="nb-dot" id="dot-newdb"></div>
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -490,7 +510,9 @@ function startApp() {
   const _pInfo = u.role==="so"&&u.parentRSM ? "SO · "+u.parentRSM.split(" ").map(w=>w[0].toUpperCase()+w.slice(1)).join(" ") : u.zone;
   $("tb-zone").textContent = _pInfo;
   $("tb-week").textContent = _autoWeekLabel();
-  const _sLbl=$("nav-settings-lbl"); if(_sLbl) _sLbl.textContent=u.role==="manager"?"Admin":"Add DB";
+  if(u.role!=="manager"){
+    const _sLbl=$("nav-settings-lbl"); if(_sLbl) _sLbl.textContent="Add DB";
+  }
   renderNewDBForm();
 
   renderTracker();
@@ -716,7 +738,7 @@ function scoreLabel(s) {
 // ── HOME ──────────────────────────────────────────────────────
 function renderHome() {
   const u = STATE.user;
-  if(u.role==="manager"){ renderAdminHome(); return; }
+  if(u.role==="manager"){ initAdminNav(); renderAdminHome(); return; }
   // SO uses same home view as RSM — MASTER[so.name] is already filtered to their DBs
 
   const master = MASTER[u.name];
@@ -814,757 +836,582 @@ function renderHome() {
     : `<div style="padding:12px 13px;font-size:13px;color:var(--text2)">✓ All clear — no urgent tasks</div>`;
 }
 
-// ── ADMIN STATE ───────────────────────────────────────────────
-const ADMIN_STATE = { view:"overall", sortBy:"overall" };
+// ── ADMIN STATE ──────────────────────────────────────────────
+const ADMIN_STATE = { tab:"home" };
 const ROUTES_COMPANY_TARGET = 200;
 
-function _toDisp(name){ return name.split(" ").map(w=>w[0].toUpperCase()+w.slice(1)).join(" "); }
-function _initials(name){ return name.split(" ").map(w=>w[0].toUpperCase()).join("").slice(0,2); }
+function _toDisp(name){ return (name||"").split(" ").map(w=>w[0].toUpperCase()+w.slice(1)).join(" "); }
+function _initials(name){ return (name||"").split(" ").map(w=>w[0].toUpperCase()).join("").slice(0,2); }
 function _pct(a,b){ return b>0?Math.round(a/b*100):0; }
+function _scoreColor(s){ return s>=70?"#3B6D11":s>=40?"#633806":"#791F1F"; }
+function _scoreBg(s)  { return s>=70?"#EAF3DE":s>=40?"#FAEEDA":"#FCEBEB"; }
+function _barColor(p) { return p>=70?"#97C459":p>=40?"#EF9F27":"#E24B4A"; }
+function _lakh(v)     { return "₹"+(Math.round(v/100000*10)/10)+"L"; }
+function _pbar(pct,col){ return `<div style="height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin-top:5px"><div style="height:100%;width:${Math.min(pct,100)}%;background:${col};border-radius:2px"></div></div>`; }
+function _kpi(lbl,val,sub){ return `<div style="background:var(--bg);border-radius:6px;padding:7px 9px"><div style="font-size:10px;color:var(--text2)">${lbl}</div><div style="font-size:12px;font-weight:700;margin-top:2px">${val}</div>${sub?`<div style="font-size:10px;color:var(--text2);margin-top:1px">${sub}</div>`:""}</div>`; }
 
-function _getRouteStats(rsmName) {
-  const master = MASTER[rsmName];
-  if(!master) return {active:0, planned:0, target:0};
-  const allDBs = master.dbs||[];
-  const planned = allDBs.reduce((s,db)=>s+(+db.vehicles||0),0);
-  const target  = allDBs.reduce((s,db)=>s+(+db.routeTarget||db.vehicles||0),0);
-  // Active = DBs with any secondary billing this month
-  const curMonth = curMonthStr();
-  const curYr    = curYearNum();
-  let active = 0;
-  allDBs.forEach(db=>{
-    const hist = (STATE.history||{})[db.id];
-    if(!hist) return;
-    const monthData = hist?.monthly?.[curMonth]?.[curYr];
-    if(monthData && (+monthData.sec||0)>0) active++;
-  });
-  return {active, planned, target};
+// ── ADMIN INIT ────────────────────────────────────────────────
+function initAdminNav() {
+  const rsm = $("bnav-rsm"), adm = $("bnav-admin");
+  if(rsm) rsm.style.display = "none";
+  if(adm) adm.style.display = "flex";
+  // Show pending badge
+  const pending = _getPendingDBs();
+  const dot = $("dot-newdb");
+  if(dot) dot.style.display = pending.length>0?"block":"none";
 }
 
-function _getL3MBars(rsmName) {
-  // Returns last 3 completed months + current partial
-  const now = new Date();
-  const months = [];
-  for(let i=3;i>=0;i--){
-    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-    months.push({mon:CAL_MONTHS[d.getMonth()], yr:d.getFullYear(), isCur:i===0});
-  }
-  const master = MASTER[rsmName];
-  if(!master) return months.map(m=>({...m,pct:0}));
-  const allSS = master.ss||[];
-  return months.map(m=>{
-    let tgt=0, ach=0;
-    allSS.forEach(ss=>{
-      const hist = (STATE.history||{})[ss.id];
-      const md = hist?.monthly?.[m.mon]?.[m.yr];
-      tgt += +ss.secTgt||0;
-      ach += md ? (+md.sec||0) : 0;
-    });
-    return {...m, pct:_pct(ach,tgt)};
+function adminGoTab(tab) {
+  ADMIN_STATE.tab = tab;
+  // Update nav active state
+  ["home","ssdb","dbretail","routes","newdb"].forEach(t=>{
+    const btn=$("anb-"+t), lbl=$("anl-"+t);
+    if(btn) btn.classList.toggle("active", t===tab);
+    if(lbl) lbl.style.color = t===tab?"var(--brand)":"var(--text2)";
+  });
+  renderAdminHome();
+}
+
+// ── DATA HELPERS ──────────────────────────────────────────────
+function _getRSMList() {
+  return Object.keys(MASTER).filter(n=>{
+    const u=USERS[n]; return u && u.role==="rsm";
   });
 }
 
 function _getMTDStats(rsmName) {
-  const master = MASTER[rsmName];
-  if(!master) return {secPct:0,priPct:0,secAch:0,secTgt:0,priAch:0,priTgt:0};
-  const curMonth = curMonthStr(), curYr = curYearNum();
+  const master=MASTER[rsmName]; if(!master) return {secAch:0,secTgt:0,priAch:0,priTgt:0,secPct:0,priPct:0};
+  const cm=curMonthStr(), cy=curYearNum();
   let secTgt=0,secAch=0,priTgt=0,priAch=0;
   (master.ss||[]).forEach(ss=>{
-    const hist=(STATE.history||{})[ss.id];
-    const md=hist?.monthly?.[curMonth]?.[curYr];
     secTgt+=+ss.secTgt||0;
+    const md=(STATE.history||{})[ss.id]?.monthly?.[cm]?.[cy];
     secAch+=md?(+md.sec||0):0;
   });
   (master.dbs||[]).forEach(db=>{
-    const hist=(STATE.history||{})[db.id];
-    const md=hist?.monthly?.[curMonth]?.[curYr];
     priTgt+=+db.priTgt||0;
+    const md=(STATE.history||{})[db.id]?.monthly?.[cm]?.[cy];
     priAch+=md?(+md.pri||0):0;
   });
-  return {
-    secPct:_pct(secAch,secTgt), priPct:_pct(priAch,priTgt),
-    secAch, secTgt, priAch, priTgt
-  };
+  // Last month same-day estimate (full last month ach)
+  const lmDate=new Date(cy,new Date().getMonth()-1,1);
+  const lm=CAL_MONTHS[lmDate.getMonth()], ly=lmDate.getFullYear();
+  let lmSec=0;
+  (master.ss||[]).forEach(ss=>{
+    const md=(STATE.history||{})[ss.id]?.monthly?.[lm]?.[ly];
+    lmSec+=md?(+md.sec||0):0;
+  });
+  const yoy = lmSec>0?Math.round((secAch-lmSec)/lmSec*100):0;
+  return {secAch,secTgt,priAch,priTgt,secPct:_pct(secAch,secTgt),priPct:_pct(priAch,priTgt),lmSec,yoy};
+}
+
+function _getRouteStats(rsmName) {
+  const master=MASTER[rsmName]; if(!master) return {active:0,planned:0,target:0};
+  const allDBs=master.dbs||[];
+  const planned=allDBs.reduce((s,db)=>s+(+db.vehicles||0),0);
+  const target=allDBs.reduce((s,db)=>s+(+db.routeTarget||+db.vehicles||0),0);
+  const cm=curMonthStr(), cy=curYearNum();
+  let active=0;
+  allDBs.forEach(db=>{
+    const md=(STATE.history||{})[db.id]?.monthly?.[cm]?.[cy];
+    if(md&&(+md.sec||0)>0) active++;
+  });
+  return {active,planned,target};
 }
 
 function _getSKUStats(rsmName) {
-  const _skuTgts = (typeof FOCUS_SKU_TARGETS !== "undefined") ? FOCUS_SKU_TARGETS : {};
-  const tgts = _skuTgts[rsmName]||{mrp10:0,papdiGathiya:0,chilliWheel:0,puffGarlic:0};
-  const curMonth=curMonthStr(), curYr=curYearNum();
-  const skuKeys=["mrp10","papdiGathiya","chilliWheel","puffGarlic"];
-  let totalAch=0, totalTgt=0;
-  skuKeys.forEach(k=>{ totalTgt+=+tgts[k]||0; });
-  // Sum from history SKU data
+  const _skuTgts=(typeof FOCUS_SKU_TARGETS!=="undefined")?FOCUS_SKU_TARGETS:{};
+  const tgts=_skuTgts[rsmName]||{mrp10:0,papdiGathiya:0,chilliWheel:0,puffGarlic:0};
+  const totalTgt=Object.values(tgts).reduce((s,v)=>s+(+v||0),0);
   const master=MASTER[rsmName]; if(!master) return {ach:0,tgt:totalTgt};
+  const cm=curMonthStr(), cy=curYearNum();
+  let totalAch=0;
   [...(master.ss||[]),...(master.dbs||[])].forEach(e=>{
-    const hist=(STATE.history||{})[e.id];
-    const md=hist?.monthly?.[curMonth]?.[curYr];
-    if(md) totalAch+=skuKeys.reduce((s,k)=>s+(+md[k]||0),0);
+    const md=(STATE.history||{})[e.id]?.monthly?.[cm]?.[cy];
+    if(md) totalAch+=["mrp10","papdiGathiya","chilliWheel","puffGarlic"].reduce((s,k)=>s+(+md[k]||0),0);
   });
-  return {ach:totalAch, tgt:totalTgt};
+  return {ach:totalAch,tgt:totalTgt};
 }
 
-function _getVacantStats(rsmName) {
-  const master=MASTER[rsmName]; if(!master) return {ach:0,tgt:0};
-  const curMonth=curMonthStr(), curYr=curYearNum();
-  const vacants=(master.dbs||[]).filter(db=>(db.area||"").toLowerCase()==="vacant");
-  if(!vacants.length) return {ach:0,tgt:0,none:true};
-  let tgt=0,ach=0;
-  vacants.forEach(db=>{
-    tgt+=+db.priTgt||0;
-    const hist=(STATE.history||{})[db.id];
-    const md=hist?.monthly?.[curMonth]?.[curYr];
-    ach+=md?(+md.pri||0):0;
-  });
-  return {ach, tgt};
-}
-
-function _getPJPExec(rsmName) {
-  // Read from pjpExec store
-  const allExec = JSON.parse(localStorage.getItem("pjpExec_"+rsmName)||"{}");
-  let done=0, total=0;
-  Object.values(allExec).forEach(weekData=>{
-    Object.values(weekData).forEach(visits=>{
-      (Array.isArray(visits)?visits:[visits]).forEach(v=>{
-        total++;
-        if(v.status==="done") done++;
-      });
+function _getL3M(rsmName) {
+  const now=new Date();
+  return [3,2,1,0].map(i=>{
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const mon=CAL_MONTHS[d.getMonth()], yr=d.getFullYear();
+    const master=MASTER[rsmName]; if(!master) return {mon,pct:0,isCur:i===0};
+    let tgt=0,ach=0;
+    (master.ss||[]).forEach(ss=>{
+      const md=(STATE.history||{})[ss.id]?.monthly?.[mon]?.[yr];
+      tgt+=+ss.secTgt||0; ach+=md?(+md.sec||0):0;
     });
+    return {mon,pct:_pct(ach,tgt),isCur:i===0};
   });
-  return total>0?_pct(done,total):null;
 }
 
-function _scoreColor(s){ return s>=70?"#3B6D11":s>=40?"#633806":"#791F1F"; }
-function _scoreBg(s)  { return s>=70?"#EAF3DE":s>=40?"#FAEEDA":"#FCEBEB"; }
-function _barColor(p) { return p>=70?"#97C459":p>=40?"#EF9F27":"#E24B4A"; }
-
+// ── MAIN RENDER ───────────────────────────────────────────────
 function renderAdminHome() {
-  const curMonth = curMonthStr(), curYr = curYearNum();
+  const homeEl=$("scr-home"); if(!homeEl) return;
+  const tab=ADMIN_STATE.tab;
+  const cm=curMonthStr(), cy=curYearNum();
+  const rsmNames=_getRSMList();
 
-  // Build RSM data array (exclude manager + SOs)
-  const rsmNames = Object.keys(MASTER).filter(n=>{
-    const u=USERS[n]; return u && u.role==="rsm";
-  });
-
-  const rsms = rsmNames.map(name=>{
-    const S   = calcRSMScore(name, STATE.history);
-    const mtd = _getMTDStats(name);
-    const sku = _getSKUStats(name);
-    const vac = _getVacantStats(name);
-    const rts = _getRouteStats(name);
-    const pjp = _getPJPExec(name);
-    return {
-      name, dispName:_toDisp(name), initials:_initials(name),
-      zone:USERS[name]?.zone||"—",
-      score:S.score, salesPts:S.salesPts, yoyPts:S.yoyPts,
-      vacantPts:S.vacantPts, skuPts:S.skuPts,
-      ...mtd, sku, vac, rts, pjp
-    };
-  });
-
-  // Pending DB approvals
-  const pending = _getPendingDBs();
-
-  // Company-wide route totals
-  const totalRoutesActive  = rsms.reduce((s,r)=>s+r.rts.active,0);
-  const totalRoutesPlanned = rsms.reduce((s,r)=>s+r.rts.planned,0);
-  const onTrack = rsms.filter(r=>r.score>=70).length;
-  const belowTgt = rsms.filter(r=>r.score<50).length;
-
-  // Sort by current tab
-  const sorted = [...rsms].sort((a,b)=>{
-    if(ADMIN_STATE.sortBy==="ssdb")     return b.secPct-a.secPct;
-    if(ADMIN_STATE.sortBy==="dbretail") return b.priPct-a.priPct;
-    if(ADMIN_STATE.sortBy==="routes")   return b.rts.active-a.rts.active;
-    return b.score-a.score; // overall
-  });
-
-  const homeEl = $("scr-home");
-  if(!homeEl) return;
-
-  const tabs = [
-    {id:"overall",  lbl:"Overall"},
-    {id:"ssdb",     lbl:"SS-DB"},
-    {id:"dbretail", lbl:"DB-Retail"},
-    {id:"routes",   lbl:"Routes"},
-    {id:"zone",     lbl:"Zone view"},
-  ];
-
-  const tabHTML = tabs.map(t=>`
-    <button onclick="adminSetTab('${t.id}')" id="atab-${t.id}"
-      style="padding:5px 11px;border-radius:20px;font-size:11px;font-weight:500;
-      border:0.5px solid var(--border);cursor:pointer;white-space:nowrap;
-      background:${ADMIN_STATE.sortBy===t.id||ADMIN_STATE.view===t.id?'var(--brand)':'transparent'};
-      color:${ADMIN_STATE.sortBy===t.id||ADMIN_STATE.view===t.id?'#fff':'var(--text2)'}">
-      ${t.lbl}
-    </button>`).join("");
-
-  const pendingBadge = pending.length>0
-    ? `<span style="background:#FAEEDA;color:#633806;border-radius:4px;font-size:10px;padding:2px 7px;font-weight:500;cursor:pointer"
-         onclick="adminScrollToPending()">${pending.length} pending</span>`
-    : "";
-
-  // Summary stats row
-  const statsHTML = `
-    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px">
-      <div style="background:var(--bg);border-radius:var(--r);padding:10px 12px">
-        <div style="font-size:20px;font-weight:700">${rsms.length}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px">RSMs active</div>
-      </div>
-      <div style="background:var(--bg);border-radius:var(--r);padding:10px 12px">
-        <div style="font-size:20px;font-weight:700;color:#3B6D11">${onTrack}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px">On track ≥70pts</div>
-      </div>
-      <div style="background:var(--bg);border-radius:var(--r);padding:10px 12px">
-        <div style="font-size:20px;font-weight:700">${totalRoutesActive}<span style="font-size:13px;color:var(--text2)">/${ROUTES_COMPANY_TARGET}</span></div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px">Routes active / target</div>
-      </div>
-      <div style="background:var(--bg);border-radius:var(--r);padding:10px 12px">
-        <div style="font-size:20px;font-weight:700;color:#791F1F">${belowTgt}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px">Below 50pts</div>
-      </div>
-    </div>`;
-
-  // RSM cards
-  const rsmCardsHTML = ADMIN_STATE.view==="zone"
-    ? _renderZoneView(rsms)
-    : sorted.map((r,i)=>_renderAdminRSMCard(r,i)).join("");
-
-  // Pending approvals section
-  const pendingHTML = pending.length>0 ? `
-    <div style="margin-top:4px">
-      <div class="slbl" id="pending-section">Pending DB approvals</div>
-      ${pending.map(p=>_renderPendingCard(p)).join("")}
-    </div>` : "";
-
-  // Export section
-  const exportHTML = `
-    <div style="margin-top:16px;padding-top:14px;border-top:0.5px solid var(--border)">
-      <div class="slbl">Export</div>
-      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">
-        <button class="btn btn-out" style="font-size:11px;padding:8px 4px" onclick="adminExportPDF()">PDF report</button>
-        <button class="btn btn-out" style="font-size:11px;padding:8px 4px" onclick="adminExportExcel()">Excel</button>
-        <button class="btn btn-out" style="font-size:11px;padding:8px 4px" onclick="adminExportWhatsApp()">WhatsApp</button>
-      </div>
-    </div>`;
-
-  homeEl.innerHTML = `
-    <div style="background:var(--bg);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:15px;font-weight:700">Admin — RMC Pulse</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px">${curMonth} ${curYr} · All zones</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        ${pendingBadge}
-        <div style="font-size:11px;color:var(--text2)">${_toDisp(STATE.user.name)}</div>
-      </div>
-    </div>
-    ${statsHTML}
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;overflow-x:auto;padding-bottom:2px">
-      ${tabHTML}
-    </div>
-    <div class="slbl">${ADMIN_STATE.view==="zone"?"Zone view":"Ranking — "+curMonth+" "+curYr}</div>
-    <div id="admin-rsm-list">${rsmCardsHTML}</div>
-    ${pendingHTML}
-    ${exportHTML}
-  `;
+  if(tab==="home")     { homeEl.innerHTML=_renderAdminDashboard(rsmNames,cm,cy); return; }
+  if(tab==="ssdb")     { homeEl.innerHTML=_renderAdminSSDB(rsmNames,cm,cy); return; }
+  if(tab==="dbretail") { homeEl.innerHTML=_renderAdminDBRetail(rsmNames,cm,cy); return; }
+  if(tab==="routes")   { homeEl.innerHTML=_renderAdminRoutes(rsmNames,cm,cy); return; }
+  if(tab==="newdb")    { homeEl.innerHTML=_renderAdminNewDBs(); return; }
 }
 
-function _renderAdminRSMCard(r, idx) {
-  const l3m = _getL3MBars(r.name);
-  const sortBy = ADMIN_STATE.sortBy;
-  // Primary metric shown in top-right based on active tab
-  const primaryMetric = sortBy==="ssdb"     ? {val:r.secPct+"%",   lbl:"SS-DB"}
-                      : sortBy==="dbretail"  ? {val:r.priPct+"%",   lbl:"DB Retail"}
-                      : sortBy==="routes"    ? {val:r.rts.active+"/"+r.rts.planned, lbl:"Routes"}
-                      :                        {val:r.score,         lbl:"Score"};
-  const primaryColor = sortBy==="routes"
-    ? _barColor(_pct(r.rts.active, r.rts.planned))
-    : sortBy==="overall" ? _scoreColor(r.score)
-    : _barColor(sortBy==="ssdb" ? r.secPct : r.priPct);
-  const borderStyle = r.score<50 ? "border-color:#F09595" : "";
-  const pjpStr = r.pjp!=null ? r.pjp+"%" : "—";
+// ── HOME DASHBOARD ────────────────────────────────────────────
+function _renderAdminDashboard(rsmNames,cm,cy) {
+  // Company totals
+  let totalSecAch=0,totalSecTgt=0,totalPriAch=0,totalPriTgt=0,totalRouteActive=0,totalRoutePlanned=0,totalSKUAch=0,totalSKUTgt=0;
+  const rsms=rsmNames.map(name=>{
+    const mtd=_getMTDStats(name);
+    const rts=_getRouteStats(name);
+    const sku=_getSKUStats(name);
+    const S=calcRSMScore(name,STATE.history);
+    totalSecAch+=mtd.secAch; totalSecTgt+=mtd.secTgt;
+    totalPriAch+=mtd.priAch; totalPriTgt+=mtd.priTgt;
+    totalRouteActive+=rts.active; totalRoutePlanned+=rts.planned;
+    totalSKUAch+=sku.ach; totalSKUTgt+=sku.tgt;
+    return {name,dispName:_toDisp(name),initials:_initials(name),score:S.score,zone:USERS[name]?.zone||"—"};
+  }).sort((a,b)=>b.score-a.score);
 
-  const barHTML = (pct,color)=>`
-    <div style="height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin-top:4px">
-      <div style="height:100%;width:${Math.min(pct,100)}%;border-radius:2px;background:${color}"></div>
-    </div>`;
+  const secPct=_pct(totalSecAch,totalSecTgt);
+  const priPct=_pct(totalPriAch,totalPriTgt);
+  const rtPct=_pct(totalRouteActive,ROUTES_COMPANY_TARGET);
+  const skuPct=_pct(totalSKUAch,totalSKUTgt);
+  const pending=_getPendingDBs();
 
-  const kpiHTML = `
-    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-bottom:8px">
-      <div style="background:var(--bg);border-radius:6px;padding:7px 9px;${sortBy==='ssdb'?'border:0.5px solid #97C459':''}" >
-        <div style="font-size:10px;color:var(--text2)">SS-DB secondary</div>
-        <div style="font-size:12px;font-weight:700;margin-top:2px;color:${_barColor(r.secPct)}">${r.secPct}%</div>
-        ${barHTML(r.secPct,_barColor(r.secPct))}
-      </div>
-      <div style="background:var(--bg);border-radius:6px;padding:7px 9px;${sortBy==='dbretail'?'border:0.5px solid #97C459':''}">
-        <div style="font-size:10px;color:var(--text2)">DB retail</div>
-        <div style="font-size:12px;font-weight:700;margin-top:2px;color:${_barColor(r.priPct)}">${r.priPct}%</div>
-        ${barHTML(r.priPct,_barColor(r.priPct))}
-      </div>
-      <div style="background:var(--bg);border-radius:6px;padding:7px 9px">
-        <div style="font-size:10px;color:var(--text2)">PJP execution</div>
-        <div style="font-size:12px;font-weight:700;margin-top:2px">${pjpStr}</div>
-        ${r.pjp!=null?barHTML(r.pjp,"#378ADD"):""}
-      </div>
-      <div style="background:var(--bg);border-radius:6px;padding:7px 9px">
-        <div style="font-size:10px;color:var(--text2)">Focus SKU</div>
-        <div style="font-size:12px;font-weight:700;margin-top:2px">${r.sku.ach}/${r.sku.tgt} <span style="font-size:10px;font-weight:400;color:var(--text2)">cases</span></div>
-        ${barHTML(_pct(r.sku.ach,r.sku.tgt),_barColor(_pct(r.sku.ach,r.sku.tgt)))}
-      </div>
-      <div style="background:var(--bg);border-radius:6px;padding:7px 9px">
-        <div style="font-size:10px;color:var(--text2)">Vacant coverage</div>
-        <div style="font-size:12px;font-weight:700;margin-top:2px">${r.vac.none?"—":("₹"+Math.round(r.vac.ach/100000*10)/10+"L / ₹"+Math.round(r.vac.tgt/100000*10)/10+"L")}</div>
-        ${!r.vac.none?barHTML(_pct(r.vac.ach,r.vac.tgt),_barColor(_pct(r.vac.ach,r.vac.tgt))):""}
-      </div>
-      <div style="background:var(--bg);border-radius:6px;padding:7px 9px;${sortBy==='routes'?'border:0.5px solid #1D9E75':''}">
-        <div style="font-size:10px;color:var(--text2)">Routes</div>
-        <div style="font-size:12px;font-weight:700;margin-top:2px">${r.rts.active}/${r.rts.planned} <span style="font-size:10px;font-weight:400;color:var(--text2)">active/planned</span></div>
-        ${barHTML(_pct(r.rts.active,r.rts.planned),"#1D9E75")}
-      </div>
-    </div>`;
-
-  const trendHTML = l3m.length ? `
-    <div style="margin-top:6px">
-      <div style="font-size:10px;color:var(--text2);margin-bottom:4px">L3M SS-DB trend</div>
-      <div style="display:flex;align-items:flex-end;gap:3px;height:28px">
-        ${l3m.map(m=>`<div style="flex:1;border-radius:2px 2px 0 0;height:${Math.max(m.pct,4)}%;background:${m.isCur?"var(--border)":_barColor(m.pct)}"></div>`).join("")}
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-top:2px">
-        ${l3m.map(m=>`<span>${m.mon}</span>`).join("")}
-      </div>
-    </div>` : "";
+  const avColors=["#B5D4F4","#C0DD97","#FAC775","#F4C0D1","#9FE1CB","#F5C4B3","#CECBF6","#D3D1C7","#F7C1C1"];
+  const avTxtColors=["#0C447C","#27500A","#633806","#72243E","#085041","#712B13","#3C3489","#444441","#791F1F"];
 
   return `
-    <div style="background:var(--card);border:0.5px solid var(--border);${borderStyle};border-radius:var(--r);padding:12px 13px;margin-bottom:8px">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
-        <div style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;background:${_scoreBg(r.score)};color:${_scoreColor(r.score)}">${idx+1}</div>
-        <div class="av av-b" style="width:30px;height:30px;font-size:10px">${r.initials}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:700">${r.dispName}</div>
-          <div style="font-size:11px;color:var(--text2)">${r.zone}</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:16px;font-weight:700;color:${primaryColor}">${primaryMetric.val}</div>
-          <div style="font-size:10px;color:var(--text2)">${primaryMetric.lbl}</div>
-        </div>
+    <div style="background:var(--brand2);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#fff">RMC Pulse</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:1px">${cm} ${cy} · All zones</div>
       </div>
-      ${kpiHTML}
-      ${trendHTML}
+      ${pending.length>0?`<span onclick="adminGoTab('newdb')" style="background:#FAEEDA;color:#633806;border-radius:4px;font-size:10px;padding:2px 8px;font-weight:500;cursor:pointer">${pending.length} pending</span>`:""}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-bottom:14px">
+      <div style="background:var(--bg);border-radius:var(--r);padding:10px 12px">
+        <div style="font-size:10px;color:var(--text2)">SS-DB achieved</div>
+        <div style="font-size:19px;font-weight:700;margin-top:3px">${_lakh(totalSecAch)}</div>
+        <div style="font-size:11px;font-weight:500;color:${_barColor(secPct)};margin-top:1px">${secPct}% of ${_lakh(totalSecTgt)}</div>
+        ${_pbar(secPct,_barColor(secPct))}
+      </div>
+      <div style="background:var(--bg);border-radius:var(--r);padding:10px 12px">
+        <div style="font-size:10px;color:var(--text2)">DB-Retail achieved</div>
+        <div style="font-size:19px;font-weight:700;margin-top:3px">${_lakh(totalPriAch)}</div>
+        <div style="font-size:11px;font-weight:500;color:${_barColor(priPct)};margin-top:1px">${priPct}% of ${_lakh(totalPriTgt)}</div>
+        ${_pbar(priPct,_barColor(priPct))}
+      </div>
+      <div style="background:var(--bg);border-radius:var(--r);padding:10px 12px">
+        <div style="font-size:10px;color:var(--text2)">Routes active / target</div>
+        <div style="font-size:19px;font-weight:700;margin-top:3px">${totalRouteActive}<span style="font-size:13px;color:var(--text2)">/${ROUTES_COMPANY_TARGET}</span></div>
+        <div style="font-size:11px;font-weight:500;color:${_barColor(rtPct)};margin-top:1px">${rtPct}% · ${ROUTES_COMPANY_TARGET-totalRouteActive} to go</div>
+        ${_pbar(rtPct,_barColor(rtPct))}
+      </div>
+      <div style="background:var(--bg);border-radius:var(--r);padding:10px 12px">
+        <div style="font-size:10px;color:var(--text2)">Focus SKU cases</div>
+        <div style="font-size:19px;font-weight:700;margin-top:3px">${totalSKUAch.toLocaleString()}</div>
+        <div style="font-size:11px;font-weight:500;color:${_barColor(skuPct)};margin-top:1px">${skuPct}% of ${totalSKUTgt.toLocaleString()}</div>
+        ${_pbar(skuPct,_barColor(skuPct))}
+      </div>
+    </div>
+
+    <div class="slbl">RSM leaderboard — ${cm} ${cy}</div>
+    <div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:12px">
+      ${rsms.map((r,i)=>`
+        <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;${i>0?'border-top:0.5px solid var(--border)':''}">
+          <div style="font-size:11px;font-weight:500;width:16px;color:${i<3?_scoreColor(r.score):'var(--text2)'}">${i+1}</div>
+          <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0;background:${avColors[i%avColors.length]};color:${avTxtColors[i%avTxtColors.length]}">${r.initials}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.dispName}</div>
+            <div style="font-size:10px;color:var(--text2)">${r.zone}</div>
+          </div>
+          <div style="font-size:14px;font-weight:700;color:${_scoreColor(r.score)};flex-shrink:0">${r.score}<span style="font-size:10px;font-weight:400;color:var(--text2)">/100</span></div>
+        </div>`).join("")}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">
+      <button class="btn btn-out" style="font-size:11px;padding:8px 4px" onclick="adminExportPDF()">PDF</button>
+      <button class="btn btn-out" style="font-size:11px;padding:8px 4px" onclick="adminExportExcel()">Excel</button>
+      <button class="btn btn-out" style="font-size:11px;padding:8px 4px" onclick="adminExportWhatsApp()">WhatsApp</button>
     </div>`;
 }
 
-function _renderZoneView(rsms) {
-  const zones = {};
-  rsms.forEach(r=>{
-    const z = r.zone||"Other";
-    if(!zones[z]) zones[z]=[];
-    zones[z].push(r);
-  });
-  const zoneColors = ["#1D9E75","#378ADD","#EF9F27","#D4537E","#7F77DD","#D85A30"];
-  return Object.entries(zones).map(([zone, zRSMs], zi)=>{
-    const avgScore = Math.round(zRSMs.reduce((s,r)=>s+r.score,0)/zRSMs.length);
-    const zSecPct  = _pct(zRSMs.reduce((s,r)=>s+r.secAch,0), zRSMs.reduce((s,r)=>s+r.secTgt,0));
-    const zPriPct  = _pct(zRSMs.reduce((s,r)=>s+r.priAch,0), zRSMs.reduce((s,r)=>s+r.priTgt,0));
-    const zRoutes  = zRSMs.reduce((s,r)=>s+r.rts.active,0);
-    const zRtPlan  = zRSMs.reduce((s,r)=>s+r.rts.planned,0);
-    const col = zoneColors[zi%zoneColors.length];
-    return `
-      <div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);padding:12px 13px;margin-bottom:10px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
-          <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></div>
-          <div style="font-size:13px;font-weight:700;flex:1">${zone}</div>
-          <div style="font-size:11px;color:var(--text2)">${zRSMs.length} RSM${zRSMs.length>1?"s":""} · avg ${avgScore}pts</div>
+// ── SS-DB TAB ─────────────────────────────────────────────────
+function _renderAdminSSDB(rsmNames,cm,cy) {
+  const rsms=rsmNames.map(name=>{
+    const mtd=_getMTDStats(name);
+    const l3m=_getL3M(name);
+    return {name,dispName:_toDisp(name),initials:_initials(name),zone:USERS[name]?.zone||"—",...mtd,l3m};
+  }).sort((a,b)=>b.secPct-a.secPct);
+
+  const totalAch=rsms.reduce((s,r)=>s+r.secAch,0);
+  const totalTgt=rsms.reduce((s,r)=>s+r.secTgt,0);
+
+  return `
+    <div style="background:var(--bg);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:10px;color:var(--text2)">Total SS-DB — ${cm} ${cy}</div>
+        <div style="font-size:18px;font-weight:700;margin-top:2px">${_lakh(totalAch)} <span style="font-size:12px;color:var(--text2)">/ ${_lakh(totalTgt)}</span></div>
+      </div>
+      <div style="font-size:20px;font-weight:700;color:${_barColor(_pct(totalAch,totalTgt))}">${_pct(totalAch,totalTgt)}%</div>
+    </div>
+    ${rsms.map((r,i)=>`
+    <div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);padding:11px 12px;margin-bottom:7px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:500;width:16px;color:${i<3?_barColor(r.secPct):'var(--text2)'}">${i+1}</div>
+        <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0;background:#B5D4F4;color:#0C447C">${r.initials}</div>
+        <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500">${r.dispName}</div><div style="font-size:10px;color:var(--text2)">${r.zone}</div></div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:15px;font-weight:700;color:${_barColor(r.secPct)}">${r.secPct}%</div>
+          <div style="font-size:10px;color:var(--text2)">${_lakh(r.secAch)} / ${_lakh(r.secTgt)}</div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px">
-          <div style="background:var(--bg);border-radius:6px;padding:7px 9px">
-            <div style="font-size:10px;color:var(--text2)">SS-DB</div>
-            <div style="font-size:12px;font-weight:700;margin-top:2px;color:${_barColor(zSecPct)}">${zSecPct}%</div>
-          </div>
-          <div style="background:var(--bg);border-radius:6px;padding:7px 9px">
-            <div style="font-size:10px;color:var(--text2)">DB retail</div>
-            <div style="font-size:12px;font-weight:700;margin-top:2px;color:${_barColor(zPriPct)}">${zPriPct}%</div>
-          </div>
-          <div style="background:var(--bg);border-radius:6px;padding:7px 9px">
-            <div style="font-size:10px;color:var(--text2)">Routes</div>
-            <div style="font-size:12px;font-weight:700;margin-top:2px">${zRoutes}/${zRtPlan}</div>
-          </div>
-          <div style="background:var(--bg);border-radius:6px;padding:7px 9px">
-            <div style="font-size:10px;color:var(--text2)">Avg score</div>
-            <div style="font-size:12px;font-weight:700;margin-top:2px;color:${_scoreColor(avgScore)}">${avgScore} pts</div>
-          </div>
+      </div>
+      ${_pbar(r.secPct,_barColor(r.secPct))}
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:8px">
+        ${_kpi("MTD achieved",_lakh(r.secAch))}
+        ${_kpi("Target",_lakh(r.secTgt))}
+        ${_kpi("Last month",_lakh(r.lmSec))}
+        ${_kpi("YoY",`<span style="color:${r.yoy>=0?'#3B6D11':'#791F1F'}">${r.yoy>=0?'+':''}${r.yoy}%</span>`)}
+      </div>
+      <div style="margin-top:8px">
+        <div style="font-size:10px;color:var(--text2);margin-bottom:4px">L3M trend</div>
+        <div style="display:flex;align-items:flex-end;gap:3px;height:24px">
+          ${r.l3m.map(m=>`<div style="flex:1;border-radius:2px 2px 0 0;height:${Math.max(m.pct,4)}%;background:${m.isCur?'var(--border)':_barColor(m.pct)}"></div>`).join("")}
         </div>
-        <div style="margin-top:8px">
-          ${zRSMs.sort((a,b)=>b.score-a.score).map(r=>`
-            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:0.5px solid var(--border)">
-              <div style="font-size:12px;flex:1">${r.dispName}</div>
-              <div style="font-size:11px;color:var(--text2)">${r.secPct}% sec</div>
-              <div style="font-size:12px;font-weight:700;color:${_scoreColor(r.score)};width:28px;text-align:right">${r.score}</div>
-            </div>`).join("")}
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-top:2px">
+          ${r.l3m.map(m=>`<span>${m.mon}</span>`).join("")}
         </div>
-      </div>`;
-  }).join("");
+      </div>
+    </div>`).join("")}`;
 }
 
-function adminSetTab(tabId) {
-  if(tabId==="zone") {
-    ADMIN_STATE.view="zone";
-    ADMIN_STATE.sortBy="zone";
-  } else {
-    ADMIN_STATE.view="overall";
-    ADMIN_STATE.sortBy=tabId;
-  }
-  renderAdminHome();
+// ── DB-RETAIL TAB ─────────────────────────────────────────────
+function _renderAdminDBRetail(rsmNames,cm,cy) {
+  const rsms=rsmNames.map(name=>{
+    const mtd=_getMTDStats(name);
+    return {name,dispName:_toDisp(name),initials:_initials(name),zone:USERS[name]?.zone||"—",...mtd};
+  }).sort((a,b)=>b.priPct-a.priPct);
+
+  const totalAch=rsms.reduce((s,r)=>s+r.priAch,0);
+  const totalTgt=rsms.reduce((s,r)=>s+r.priTgt,0);
+
+  return `
+    <div style="background:var(--bg);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:10px;color:var(--text2)">Total DB-Retail — ${cm} ${cy}</div>
+        <div style="font-size:18px;font-weight:700;margin-top:2px">${_lakh(totalAch)} <span style="font-size:12px;color:var(--text2)">/ ${_lakh(totalTgt)}</span></div>
+      </div>
+      <div style="font-size:20px;font-weight:700;color:${_barColor(_pct(totalAch,totalTgt))}">${_pct(totalAch,totalTgt)}%</div>
+    </div>
+    ${rsms.map((r,i)=>`
+    <div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);padding:11px 12px;margin-bottom:7px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:500;width:16px;color:${i<3?_barColor(r.priPct):'var(--text2)'}">${i+1}</div>
+        <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0;background:#9FE1CB;color:#085041">${r.initials}</div>
+        <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500">${r.dispName}</div><div style="font-size:10px;color:var(--text2)">${r.zone}</div></div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:15px;font-weight:700;color:${_barColor(r.priPct)}">${r.priPct}%</div>
+          <div style="font-size:10px;color:var(--text2)">${_lakh(r.priAch)} / ${_lakh(r.priTgt)}</div>
+        </div>
+      </div>
+      ${_pbar(r.priPct,_barColor(r.priPct))}
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:8px">
+        ${_kpi("MTD achieved",_lakh(r.priAch))}
+        ${_kpi("Target",_lakh(r.priTgt))}
+        ${_kpi("SS-DB",`${r.secPct}%`,"for context")}
+        ${_kpi("Gap",_lakh(Math.max(r.priTgt-r.priAch,0)),"remaining")}
+      </div>
+    </div>`).join("")}`;
 }
 
-function adminScrollToPending() {
-  const el=document.getElementById("pending-section");
-  if(el) el.scrollIntoView({behavior:"smooth"});
+// ── ROUTES TAB ────────────────────────────────────────────────
+function _renderAdminRoutes(rsmNames,cm,cy) {
+  const rsms=rsmNames.map(name=>{
+    const rts=_getRouteStats(name);
+    const dbCount=(MASTER[name]?.dbs||[]).length;
+    return {name,dispName:_toDisp(name),initials:_initials(name),zone:USERS[name]?.zone||"—",...rts,dbCount};
+  }).sort((a,b)=>b.active-a.active);
+
+  const totalActive=rsms.reduce((s,r)=>s+r.active,0);
+  const totalPlanned=rsms.reduce((s,r)=>s+r.planned,0);
+  const totalTarget=rsms.reduce((s,r)=>s+r.target,0);
+  const compPct=_pct(totalActive,ROUTES_COMPANY_TARGET);
+
+  return `
+    <div style="background:var(--bg);border-radius:var(--r);padding:10px 12px;margin-bottom:7px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div>
+          <div style="font-size:10px;color:var(--text2)">Company routes — target 200</div>
+          <div style="font-size:18px;font-weight:700;margin-top:2px">${totalActive}<span style="font-size:13px;color:var(--text2)">/${ROUTES_COMPANY_TARGET}</span></div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:700;color:${_barColor(compPct)}">${compPct}%</div>
+          <div style="font-size:10px;color:var(--text2)">${ROUTES_COMPANY_TARGET-totalActive} to go</div>
+        </div>
+      </div>
+      ${_pbar(compPct,"#1D9E75")}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:12px">
+      ${_kpi("Active routes",totalActive)}
+      ${_kpi("Planned vehicles",totalPlanned)}
+      ${_kpi("Route target",totalTarget)}
+    </div>
+    ${rsms.map((r,i)=>`
+    <div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);padding:11px 12px;margin-bottom:7px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:500;width:16px;color:var(--text2)">${i+1}</div>
+        <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0;background:#9FE1CB;color:#085041">${r.initials}</div>
+        <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500">${r.dispName}</div><div style="font-size:10px;color:var(--text2)">${r.zone} · ${r.dbCount} DBs</div></div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:15px;font-weight:700;color:#1D9E75">${r.active}/${r.planned}</div>
+          <div style="font-size:10px;color:var(--text2)">active/planned</div>
+        </div>
+      </div>
+      ${_pbar(_pct(r.active,r.planned),"#1D9E75")}
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:8px">
+        ${_kpi("Active",r.active)}
+        ${_kpi("Planned",r.planned)}
+        ${_kpi("Target",r.target)}
+      </div>
+    </div>`).join("")}`;
 }
 
-// ── PENDING DB APPROVALS ──────────────────────────────────────
-function _getPendingDBs() {
-  try {
-    return JSON.parse(localStorage.getItem("pendingDBs")||"[]");
-  } catch(e){ return []; }
-}
+// ── NEW DBs TAB ───────────────────────────────────────────────
+function _renderAdminNewDBs() {
+  const pending=_getPendingDBs();
+  const approved=JSON.parse(localStorage.getItem("approvedDBs")||"[]");
 
-function _savePendingDBs(arr) {
-  localStorage.setItem("pendingDBs", JSON.stringify(arr));
+  const pendingHTML=pending.length>0
+    ? pending.map(p=>_renderPendingCard(p)).join("")
+    : `<div style="text-align:center;padding:24px;color:var(--text2);font-size:13px">No pending approvals</div>`;
+
+  const histHTML=approved.length>0
+    ? approved.slice().reverse().slice(0,10).map(p=>`
+      <div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:12px;font-weight:500">${p.firmName||"—"}</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">${_toDisp(p.rsmName||"")} · ${p.area||""}</div>
+          <div style="font-size:10px;color:var(--text2)">${p.approvedAt?new Date(p.approvedAt).toLocaleDateString("en-IN"):""}</div>
+        </div>
+        <span style="background:#EAF3DE;color:#27500A;border-radius:4px;font-size:10px;padding:2px 7px;font-weight:500">${p.status==="approved"?"Approved":"Rejected"}</span>
+      </div>`).join("")
+    : `<div style="text-align:center;padding:16px;color:var(--text2);font-size:12px">No history yet</div>`;
+
+  return `
+    <div class="slbl" style="margin-top:0">Pending approvals ${pending.length>0?`<span style="background:#FAEEDA;color:#633806;border-radius:4px;font-size:10px;padding:1px 6px;font-weight:500;margin-left:4px">${pending.length}</span>`:""}</div>
+    ${pendingHTML}
+    <div class="slbl">Recently decided</div>
+    ${histHTML}`;
 }
 
 function _renderPendingCard(p) {
+  const fields=[
+    ["Owner",p.ownerName],["Phone",p.phone],
+    ["Vehicles",p.vehicles],["Outlets",p.outlets],
+    ["Turnover",p.turnover?"₹"+p.turnover+"L":"—"],["Investment",p.investment?"₹"+p.investment+"L":"—"],
+    ["GST",p.gst||"—"],["FSSAI",p.fssai||"—"],
+    ["Brands",p.brands||"—"],["Way of op",p.wayOfOp||"—"]
+  ].filter(([,v])=>v&&v!=="—");
+
+  const sub=new Date(p.submittedAt).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
   return `
     <div style="background:var(--card);border:0.5px solid #FAC775;border-radius:var(--r);padding:12px 13px;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <div style="font-size:13px;font-weight:700">${p.firmName||"—"}</div>
-        <span style="background:#FAEEDA;color:#633806;border-radius:4px;font-size:10px;padding:2px 7px;font-weight:500">Pending</span>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+        <div style="font-size:13px;font-weight:700;flex:1">${p.firmName||"—"}</div>
+        <span style="background:#FAEEDA;color:#633806;border-radius:4px;font-size:10px;padding:2px 7px;font-weight:500;flex-shrink:0">Pending</span>
       </div>
-      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">By ${_toDisp(p.rsmName||"")} · ${p.area||""}, ${p.district||""}</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:10px">${_toDisp(p.rsmName||"")} · ${p.area||""}, ${p.district||""} · ${sub}</div>
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-bottom:10px">
-        <div style="background:var(--bg);border-radius:6px;padding:6px 8px"><div style="font-size:10px;color:var(--text2)">Owner</div><div style="font-size:11px;font-weight:700;margin-top:1px">${p.ownerName||"—"}</div></div>
-        <div style="background:var(--bg);border-radius:6px;padding:6px 8px"><div style="font-size:10px;color:var(--text2)">Phone</div><div style="font-size:11px;font-weight:700;margin-top:1px">${p.phone||"—"}</div></div>
-        <div style="background:var(--bg);border-radius:6px;padding:6px 8px"><div style="font-size:10px;color:var(--text2)">Vehicles</div><div style="font-size:11px;font-weight:700;margin-top:1px">${p.vehicles||"—"}</div></div>
-        <div style="background:var(--bg);border-radius:6px;padding:6px 8px"><div style="font-size:10px;color:var(--text2)">Outlets</div><div style="font-size:11px;font-weight:700;margin-top:1px">${p.outlets||"—"}</div></div>
-        <div style="background:var(--bg);border-radius:6px;padding:6px 8px"><div style="font-size:10px;color:var(--text2)">Annual turnover</div><div style="font-size:11px;font-weight:700;margin-top:1px">₹${p.turnover||"—"}L</div></div>
-        <div style="background:var(--bg);border-radius:6px;padding:6px 8px"><div style="font-size:10px;color:var(--text2)">Investment</div><div style="font-size:11px;font-weight:700;margin-top:1px">₹${p.investment||"—"}L</div></div>
+        ${fields.map(([l,v])=>`<div style="background:var(--bg);border-radius:6px;padding:6px 8px"><div style="font-size:10px;color:var(--text2)">${l}</div><div style="font-size:11px;font-weight:500;margin-top:1px;word-break:break-word">${v}</div></div>`).join("")}
       </div>
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">
-        <button onclick="adminApproveDB('${p.id}')"
-          style="padding:9px;border-radius:var(--r);font-size:12px;font-weight:700;background:#EAF3DE;color:#27500A;border:0.5px solid #97C459;cursor:pointer">
-          Approve
-        </button>
-        <button onclick="adminRejectDB('${p.id}')"
-          style="padding:9px;border-radius:var(--r);font-size:12px;font-weight:700;background:#FCEBEB;color:#791F1F;border:0.5px solid #F09595;cursor:pointer">
-          Reject
-        </button>
+        <button onclick="adminApproveDB('${p.id}')" style="padding:9px;border-radius:var(--r);font-size:12px;font-weight:700;background:#EAF3DE;color:#27500A;border:0.5px solid #97C459;cursor:pointer">Approve</button>
+        <button onclick="adminRejectDB('${p.id}')" style="padding:9px;border-radius:var(--r);font-size:12px;font-weight:700;background:#FCEBEB;color:#791F1F;border:0.5px solid #F09595;cursor:pointer">Reject</button>
       </div>
     </div>`;
 }
 
+// ── APPROVAL ACTIONS ──────────────────────────────────────────
+function _getPendingDBs() {
+  try { return JSON.parse(localStorage.getItem("pendingDBs")||"[]"); } catch(e){ return []; }
+}
+function _savePendingDBs(arr) { localStorage.setItem("pendingDBs",JSON.stringify(arr)); }
+
 function adminApproveDB(id) {
-  const pending = _getPendingDBs();
-  const p = pending.find(x=>x.id===id);
-  if(!p) return;
-  // Mark as approved — write to Pending_DBs sheet if connected
-  const approved = JSON.parse(localStorage.getItem("approvedDBs")||"[]");
-  approved.push({...p, status:"approved", approvedAt:new Date().toISOString()});
-  localStorage.setItem("approvedDBs", JSON.stringify(approved));
-  // Remove from pending
+  const pending=_getPendingDBs(), p=pending.find(x=>x.id===id); if(!p) return;
+  const approved=JSON.parse(localStorage.getItem("approvedDBs")||"[]");
+  approved.push({...p,status:"approved",approvedAt:new Date().toISOString()});
+  localStorage.setItem("approvedDBs",JSON.stringify(approved));
   _savePendingDBs(pending.filter(x=>x.id!==id));
-  // Sync to Sheet
-  _syncApprovalToSheet(p, "approved");
+  _syncApprovalToSheet(p,"approved");
   renderAdminHome();
 }
 
 function adminRejectDB(id) {
-  const note = prompt("Reason for rejection (optional):")||"";
-  const pending = _getPendingDBs();
-  const p = pending.find(x=>x.id===id);
-  if(!p) return;
+  const note=prompt("Reason for rejection (optional):")||"";
+  const pending=_getPendingDBs(), p=pending.find(x=>x.id===id); if(!p) return;
+  const approved=JSON.parse(localStorage.getItem("approvedDBs")||"[]");
+  approved.push({...p,status:"rejected",rejectNote:note,approvedAt:new Date().toISOString()});
+  localStorage.setItem("approvedDBs",JSON.stringify(approved));
   _savePendingDBs(pending.filter(x=>x.id!==id));
-  _syncApprovalToSheet({...p, rejectNote:note}, "rejected");
+  _syncApprovalToSheet({...p,rejectNote:note},"rejected");
   renderAdminHome();
 }
 
-async function _syncApprovalToSheet(p, status) {
-  const sheetId = STATE.sheetId;
-  if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return;
-  const token = STATE.oauthToken;
-  if(!token) return;
+async function _syncApprovalToSheet(p,status) {
+  const sheetId=STATE.sheetId; if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return;
+  const token=STATE.oauthToken; if(!token) return;
   try {
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Pending_DBs:append?valueInputOption=USER_ENTERED`, {
-      method:"POST",
-      headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
-      body: JSON.stringify({values:[[
-        p.id, p.rsmName, p.firmName, p.ownerName, p.area, p.district,
-        p.phone, p.vehicles, p.outlets, p.turnover, p.investment,
-        p.gst||"", p.fssai||"", p.brands||"", p.wayOfOp||"",
-        status, new Date().toISOString()
-      ]]})
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Pending_DBs:append?valueInputOption=USER_ENTERED`,{
+      method:"POST",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+      body:JSON.stringify({values:[[p.id,p.rsmName,p.firmName,p.ownerName,p.area,p.district,p.phone,p.vehicles,p.outlets,p.turnover,p.investment,p.gst||"",p.fssai||"",p.brands||"",p.wayOfOp||"",status,new Date().toISOString()]]})
     });
-  } catch(e){ console.log("Approval sync error:", e); }
+  } catch(e){ console.log("Approval sync:",e); }
 }
 
-// ── EXPORT FUNCTIONS ──────────────────────────────────────────
+// ── EXPORT ────────────────────────────────────────────────────
 function adminExportWhatsApp() {
-  const curMonth = curMonthStr(), curYr = curYearNum();
-  const rsmNames = Object.keys(MASTER).filter(n=>USERS[n]?.role==="rsm");
-  const rsms = rsmNames.map(name=>{
+  const cm=curMonthStr(),cy=curYearNum();
+  const rsmNames=_getRSMList();
+  const rsms=rsmNames.map(name=>{
     const S=calcRSMScore(name,STATE.history);
     const mtd=_getMTDStats(name);
     const rts=_getRouteStats(name);
-    return {name,dispName:_toDisp(name),score:S.score,...mtd,rts};
+    return {dispName:_toDisp(name),score:S.score,...mtd,rts};
   }).sort((a,b)=>b.score-a.score);
-
-  let txt = `*RMC Pulse — ${curMonth} ${curYr}*\n`;
-  txt += `_Team summary_\n\n`;
-  rsms.forEach((r,i)=>{
-    txt += `${i+1}. *${r.dispName}*\n`;
-    txt += `   Score: ${r.score}/100 | SS-DB: ${r.secPct}% | Routes: ${r.rts.active}/${r.rts.planned}\n`;
-  });
-  txt += `\n_Generated by RMC Pulse_`;
-
-  if(navigator.share){
-    navigator.share({text:txt}).catch(()=>{});
-  } else {
-    navigator.clipboard.writeText(txt).then(()=>alert("Copied to clipboard!")).catch(()=>alert(txt));
-  }
+  let txt=`*RMC Pulse — ${cm} ${cy}*\n_RSM Rankings_\n\n`;
+  rsms.forEach((r,i)=>{ txt+=`${i+1}. *${r.dispName}* — ${r.score}/100\n   SS-DB: ${r.secPct}% | Routes: ${r.rts.active}/${r.rts.planned}\n`; });
+  txt+=`\n_Sent from RMC Pulse_`;
+  if(navigator.share){ navigator.share({text:txt}).catch(()=>{}); }
+  else { navigator.clipboard.writeText(txt).then(()=>alert("Copied!")).catch(()=>alert(txt)); }
 }
 
 function adminExportExcel() {
-  const curMonth=curMonthStr(), curYr=curYearNum();
-  const rsmNames=Object.keys(MASTER).filter(n=>USERS[n]?.role==="rsm");
-  const rows=[["RSM","Zone","Score","SS-DB %","DB Retail %","PJP Exec %","Focus SKU","Routes Active","Routes Planned"]];
+  const cm=curMonthStr(),cy=curYearNum();
+  const rsmNames=_getRSMList();
+  const rows=[["RSM","Zone","Score","SS-DB %","SS-DB ₹","SS-DB Target ₹","DB-Retail %","DB-Retail ₹","DB-Retail Target ₹","Routes Active","Routes Planned","Routes Target","Focus SKU"]];
   rsmNames.forEach(name=>{
     const S=calcRSMScore(name,STATE.history);
     const mtd=_getMTDStats(name);
-    const sku=_getSKUStats(name);
     const rts=_getRouteStats(name);
-    const pjp=_getPJPExec(name);
-    rows.push([_toDisp(name),USERS[name]?.zone||"—",S.score,mtd.secPct,mtd.priPct,pjp??0,sku.ach+"/"+sku.tgt,rts.active,rts.planned]);
+    const sku=_getSKUStats(name);
+    rows.push([_toDisp(name),USERS[name]?.zone||"—",S.score,mtd.secPct,Math.round(mtd.secAch/100000),Math.round(mtd.secTgt/100000),mtd.priPct,Math.round(mtd.priAch/100000),Math.round(mtd.priTgt/100000),rts.active,rts.planned,rts.target,sku.ach+"/"+sku.tgt]);
   });
   const csv=rows.map(r=>r.map(c=>`"${c}"`).join(",")).join("\n");
   const blob=new Blob([csv],{type:"text/csv"});
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download=`RMC_Pulse_${curMonth}_${curYr}.csv`;
-  a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`RMC_Pulse_${cm}_${cy}.csv`; a.click();
 }
 
-function adminExportPDF() {
-  window.print();
-}
+function adminExportPDF() { window.print(); }
 
-// ── NEW DB FORM ───────────────────────────────────────────────
+// ── NEW DB FORM (RSM/SO view) ─────────────────────────────────
 function renderNewDBForm() {
-  const el = $("scr-newdb-form");
-  if(!el) return;
-  const u = STATE.user;
-  const isManager = u?.role==="manager";
+  const el=$("scr-newdb-form"); if(!el) return;
+  const u=STATE.user;
+  const isManager=u?.role==="manager";
 
-  // RSM sees vacant areas from their MASTER
-  const vacantAreas = isManager ? [] : (MASTER[u.name]?.dbs||[])
-    .filter(db=>(db.area||"").toLowerCase()==="vacant")
-    .map(db=>db.name);
+  if(isManager) {
+    el.innerHTML=`
+      <div class="slbl" style="margin-top:0">Account</div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:14px;font-weight:700">${_toDisp(u?.name||"")}</div>
+        <div style="font-size:12px;color:var(--text2)">Admin · All zones</div>
+      </div>
+      <div class="slbl">App info</div>
+      <div class="card" style="font-size:13px;color:var(--text2);line-height:1.8;margin-bottom:14px">
+        Version 1.0 · RMC Pulse<br>Data syncs with Google Sheets<br>Works offline — syncs when connected
+      </div>
+      <div style="margin-top:8px"><button class="btn btn-out" onclick="doLogout()">Sign out</button></div>`;
+    return;
+  }
 
-  const vacantHTML = vacantAreas.length ? `
+  const vacantAreas=(MASTER[u.name]?.dbs||[])
+    .filter(db=>(db.area||"").toLowerCase()==="vacant").map(db=>db.name);
+
+  const vacantHTML=vacantAreas.length?`
     <div class="slbl">Vacant areas in your territory</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
-      ${vacantAreas.map(a=>`
-        <button onclick="prefillVacantArea('${a}')"
-          style="padding:5px 12px;border-radius:20px;font-size:11px;font-weight:500;
-          border:0.5px solid var(--brand);color:var(--brand);background:transparent;cursor:pointer">
-          ${a}
-        </button>`).join("")}
-    </div>` : "";
+      ${vacantAreas.map(a=>`<button onclick="prefillVacantArea('${a}')" style="padding:5px 12px;border-radius:20px;font-size:11px;font-weight:500;border:0.5px solid var(--brand);color:var(--brand);background:transparent;cursor:pointer">${a}</button>`).join("")}
+    </div>`:"";
 
-  el.innerHTML = `
+  el.innerHTML=`
     <div class="slbl" style="margin-top:0">Account</div>
     <div class="card" style="margin-bottom:14px">
       <div style="font-size:14px;font-weight:700">${_toDisp(u?.name||"")}</div>
       <div style="font-size:12px;color:var(--text2)">${u?.zone||""} · ${u?.role||""}</div>
     </div>
-    ${isManager ? `
-      <div class="slbl">App info</div>
-      <div class="card" style="font-size:13px;color:var(--text2);line-height:1.8;margin-bottom:14px">
-        Version 1.0 · RMC Pulse<br>
-        Data syncs with Google Sheets<br>
-        Works offline — syncs when connected
-      </div>` : `
     <div class="slbl">Propose a new DB</div>
     ${vacantHTML}
     <div class="card">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Fill in the details below. Your submission goes to admin for approval.</div>
-
-      <div class="field" style="margin-bottom:10px">
-        <label class="field-label">Area / Town *</label>
-        <input type="text" id="ndb-area" placeholder="e.g. Hadapsar">
-      </div>
-      <div class="field" style="margin-bottom:10px">
-        <label class="field-label">Firm Name *</label>
-        <input type="text" id="ndb-firm" placeholder="e.g. Suresh Traders">
-      </div>
-      <div class="field" style="margin-bottom:10px">
-        <label class="field-label">Owner Name *</label>
-        <input type="text" id="ndb-owner" placeholder="Full name">
-      </div>
-      <div class="field" style="margin-bottom:10px">
-        <label class="field-label">Phone Number *</label>
-        <input type="tel" id="ndb-phone" placeholder="10 digit mobile">
-      </div>
-      <div class="field" style="margin-bottom:10px">
-        <label class="field-label">Godown Address *</label>
-        <input type="text" id="ndb-address" placeholder="Full address">
-      </div>
-      <div class="field" style="margin-bottom:10px">
-        <label class="field-label">District *</label>
-        <select id="ndb-district">
-          <option value="">Select district</option>
-          ${["Ahmednagar","Aurangabad","Beed","Jalna","Kolhapur","Latur","Osmanabad","Parbhani","Pune","Ratnagiri","Sangli","Satara","Sindhudurg","Solapur","Goa"].map(d=>`<option>${d}</option>`).join("")}
-        </select>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Fill in details below — goes to admin for approval.</div>
+      <div class="field" style="margin-bottom:10px"><label class="field-label">Area / Town *</label><input type="text" id="ndb-area" placeholder="e.g. Hadapsar"></div>
+      <div class="field" style="margin-bottom:10px"><label class="field-label">Firm Name *</label><input type="text" id="ndb-firm" placeholder="e.g. Suresh Traders"></div>
+      <div class="field" style="margin-bottom:10px"><label class="field-label">Owner Name *</label><input type="text" id="ndb-owner" placeholder="Full name"></div>
+      <div class="field" style="margin-bottom:10px"><label class="field-label">Phone Number *</label><input type="tel" id="ndb-phone" placeholder="10 digit mobile"></div>
+      <div class="field" style="margin-bottom:10px"><label class="field-label">Godown Address *</label><input type="text" id="ndb-address" placeholder="Full address"></div>
+      <div class="field" style="margin-bottom:10px"><label class="field-label">District *</label>
+        <select id="ndb-district"><option value="">Select district</option>${["Ahmednagar","Aurangabad","Beed","Jalna","Kolhapur","Latur","Osmanabad","Parbhani","Pune","Ratnagiri","Sangli","Satara","Sindhudurg","Solapur","Goa"].map(d=>`<option>${d}</option>`).join("")}</select>
       </div>
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
-        <div class="field" style="margin-bottom:10px">
-          <label class="field-label">Years in business</label>
-          <input type="number" id="ndb-years" placeholder="e.g. 3" min="0">
-        </div>
-        <div class="field" style="margin-bottom:10px">
-          <label class="field-label">No. of vehicles *</label>
-          <input type="number" id="ndb-vehicles" placeholder="e.g. 2" min="0">
-        </div>
-        <div class="field" style="margin-bottom:10px">
-          <label class="field-label">Vehicles for YD</label>
-          <input type="number" id="ndb-yd-vehicles" placeholder="e.g. 1" min="0">
-        </div>
-        <div class="field" style="margin-bottom:10px">
-          <label class="field-label">Outlets covered *</label>
-          <input type="number" id="ndb-outlets" placeholder="e.g. 120" min="0">
-        </div>
-        <div class="field" style="margin-bottom:10px">
-          <label class="field-label">Annual turnover (₹L)</label>
-          <input type="number" id="ndb-turnover" placeholder="e.g. 25" min="0">
-        </div>
-        <div class="field" style="margin-bottom:10px">
-          <label class="field-label">Investment willing (₹L)</label>
-          <input type="number" id="ndb-investment" placeholder="e.g. 5" min="0">
-        </div>
+        <div class="field" style="margin-bottom:10px"><label class="field-label">Years in business</label><input type="number" id="ndb-years" placeholder="e.g. 3" min="0"></div>
+        <div class="field" style="margin-bottom:10px"><label class="field-label">No. of vehicles *</label><input type="number" id="ndb-vehicles" placeholder="e.g. 2" min="0"></div>
+        <div class="field" style="margin-bottom:10px"><label class="field-label">Vehicles for YD</label><input type="number" id="ndb-yd-vehicles" placeholder="e.g. 1" min="0"></div>
+        <div class="field" style="margin-bottom:10px"><label class="field-label">Outlets covered *</label><input type="number" id="ndb-outlets" placeholder="e.g. 120" min="0"></div>
+        <div class="field" style="margin-bottom:10px"><label class="field-label">Annual turnover (₹L)</label><input type="number" id="ndb-turnover" placeholder="e.g. 25" min="0"></div>
+        <div class="field" style="margin-bottom:10px"><label class="field-label">Investment willing (₹L)</label><input type="number" id="ndb-investment" placeholder="e.g. 5" min="0"></div>
       </div>
-      <div class="field" style="margin-bottom:10px">
-        <label class="field-label">GST No.</label>
-        <input type="text" id="ndb-gst" placeholder="15-digit GST number">
-      </div>
-      <div class="field" style="margin-bottom:10px">
-        <label class="field-label">FSSAI No.</label>
-        <input type="text" id="ndb-fssai" placeholder="Food license number">
-      </div>
-      <div class="field" style="margin-bottom:10px">
-        <label class="field-label">Other brands handled</label>
-        <input type="text" id="ndb-brands" placeholder="e.g. Haldirams, Parle">
-      </div>
-      <div class="field" style="margin-bottom:10px">
-        <label class="field-label">Areas covered for other brands</label>
-        <input type="text" id="ndb-brand-areas" placeholder="e.g. Kothrud, Deccan">
-      </div>
-      <div class="field" style="margin-bottom:14px">
-        <label class="field-label">Way of operation</label>
+      <div class="field" style="margin-bottom:10px"><label class="field-label">GST No.</label><input type="text" id="ndb-gst" placeholder="15-digit GST number"></div>
+      <div class="field" style="margin-bottom:10px"><label class="field-label">FSSAI No.</label><input type="text" id="ndb-fssai" placeholder="Food license number"></div>
+      <div class="field" style="margin-bottom:10px"><label class="field-label">Other brands handled</label><input type="text" id="ndb-brands" placeholder="e.g. Haldirams, Parle"></div>
+      <div class="field" style="margin-bottom:10px"><label class="field-label">Areas covered for other brands</label><input type="text" id="ndb-brand-areas" placeholder="e.g. Kothrud, Deccan"></div>
+      <div class="field" style="margin-bottom:14px"><label class="field-label">Way of operation</label>
         <div style="display:flex;gap:10px;margin-top:6px">
-          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-            <input type="radio" name="ndb-wayop" value="Ready Stock" checked> Ready Stock
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-            <input type="radio" name="ndb-wayop" value="Order Booking"> Order Booking
-          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="radio" name="ndb-wayop" value="Ready Stock" checked> Ready Stock</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="radio" name="ndb-wayop" value="Order Booking"> Order Booking</label>
         </div>
       </div>
       <div id="ndb-err" style="font-size:12px;color:#791F1F;margin-bottom:8px;display:none"></div>
       <button class="btn btn-brand" onclick="submitNewDB()">Submit for approval</button>
-    </div>`}
-    <div style="margin-top:16px">
-      <button class="btn btn-out" onclick="doLogout()">Sign out</button>
     </div>
-  `;
+    <div style="margin-top:16px"><button class="btn btn-out" onclick="doLogout()">Sign out</button></div>`;
 }
 
 function prefillVacantArea(areaName) {
-  const f = $("ndb-area");
-  if(f) { f.value = areaName; f.focus(); }
+  const f=$("ndb-area"); if(f){ f.value=areaName; f.focus(); }
 }
 
 function submitNewDB() {
-  const required = {
-    "ndb-area":"Area / Town",
-    "ndb-firm":"Firm Name",
-    "ndb-owner":"Owner Name",
-    "ndb-phone":"Phone Number",
-    "ndb-address":"Godown Address",
-    "ndb-district":"District",
-    "ndb-vehicles":"No. of vehicles",
-    "ndb-outlets":"Outlets covered"
-  };
+  const required={"ndb-area":"Area","ndb-firm":"Firm Name","ndb-owner":"Owner Name","ndb-phone":"Phone","ndb-address":"Address","ndb-district":"District","ndb-vehicles":"Vehicles","ndb-outlets":"Outlets"};
   for(const [id,label] of Object.entries(required)){
-    const el=$(id);
-    if(!el||!el.value.trim()){ _showNDBErr(`${label} is required`); return; }
+    const el=$(id); if(!el||!el.value.trim()){ _showNDBErr(label+" is required"); return; }
   }
-  const wayOp = document.querySelector('input[name="ndb-wayop"]:checked')?.value||"Ready Stock";
-  const submission = {
-    id:       "ndb_"+Date.now(),
-    rsmName:  STATE.user.name,
-    area:     $("ndb-area").value.trim(),
-    firmName: $("ndb-firm").value.trim(),
-    ownerName:$("ndb-owner").value.trim(),
-    phone:    $("ndb-phone").value.trim(),
-    address:  $("ndb-address").value.trim(),
-    district: $("ndb-district").value,
-    years:    $("ndb-years").value||"",
-    vehicles: $("ndb-vehicles").value||"0",
-    ydVehicles:$("ndb-yd-vehicles").value||"0",
-    outlets:  $("ndb-outlets").value||"0",
-    turnover: $("ndb-turnover").value||"",
-    investment:$("ndb-investment").value||"",
-    gst:      $("ndb-gst").value.trim(),
-    fssai:    $("ndb-fssai").value.trim(),
-    brands:   $("ndb-brands").value.trim(),
-    brandAreas:$("ndb-brand-areas").value.trim(),
-    wayOfOp:  wayOp,
-    submittedAt: new Date().toISOString(),
-    status:   "pending"
-  };
-  const pending = _getPendingDBs();
-  pending.push(submission);
-  _savePendingDBs(pending);
-  _syncNewDBToSheet(submission);
-  // Show success
-  $("scr-newdb-form").innerHTML = `
-    <div style="text-align:center;padding:40px 20px">
-      <div style="font-size:32px;margin-bottom:12px">✓</div>
-      <div style="font-size:16px;font-weight:700;margin-bottom:8px">Submitted!</div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:20px">${submission.firmName} has been sent to admin for approval.</div>
-      <button class="btn btn-brand" onclick="renderNewDBForm()">Submit another</button>
-    </div>`;
+  const wayOp=document.querySelector('input[name="ndb-wayop"]:checked')?.value||"Ready Stock";
+  const p={id:"ndb_"+Date.now(),rsmName:STATE.user.name,area:$("ndb-area").value.trim(),firmName:$("ndb-firm").value.trim(),ownerName:$("ndb-owner").value.trim(),phone:$("ndb-phone").value.trim(),address:$("ndb-address").value.trim(),district:$("ndb-district").value,years:$("ndb-years").value||"",vehicles:$("ndb-vehicles").value||"0",ydVehicles:$("ndb-yd-vehicles").value||"0",outlets:$("ndb-outlets").value||"0",turnover:$("ndb-turnover").value||"",investment:$("ndb-investment").value||"",gst:$("ndb-gst").value.trim(),fssai:$("ndb-fssai").value.trim(),brands:$("ndb-brands").value.trim(),brandAreas:$("ndb-brand-areas").value.trim(),wayOfOp:wayOp,submittedAt:new Date().toISOString(),status:"pending"};
+  const pending=_getPendingDBs(); pending.push(p); _savePendingDBs(pending);
+  _syncNewDBToSheet(p);
+  $("scr-newdb-form").innerHTML=`<div style="text-align:center;padding:40px 20px"><div style="font-size:32px;margin-bottom:12px">✓</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Submitted!</div><div style="font-size:13px;color:var(--text2);margin-bottom:20px">${p.firmName} sent to admin for approval.</div><button class="btn btn-brand" onclick="renderNewDBForm()">Submit another</button></div>`;
 }
 
-function _showNDBErr(msg) {
-  const el=$("ndb-err");
-  if(el){ el.textContent=msg; el.style.display="block"; }
-}
+function _showNDBErr(msg){ const el=$("ndb-err"); if(el){el.textContent=msg;el.style.display="block";} }
 
 async function _syncNewDBToSheet(p) {
-  const sheetId=STATE.sheetId;
-  if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return;
-  const token=STATE.oauthToken;
-  if(!token) return;
+  const sheetId=STATE.sheetId; if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return;
+  const token=STATE.oauthToken; if(!token) return;
   try {
     await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Pending_DBs:append?valueInputOption=USER_ENTERED`,{
-      method:"POST",
-      headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
-      body:JSON.stringify({values:[[
-        p.id,p.rsmName,p.firmName,p.ownerName,p.area,p.district,
-        p.phone,p.vehicles,p.ydVehicles,p.outlets,p.turnover,p.investment,
-        p.gst,p.fssai,p.brands,p.brandAreas,p.wayOfOp,p.submittedAt,"pending"
-      ]]})
+      method:"POST",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+      body:JSON.stringify({values:[[p.id,p.rsmName,p.firmName,p.ownerName,p.area,p.district,p.phone,p.vehicles,p.ydVehicles,p.outlets,p.turnover,p.investment,p.gst,p.fssai,p.brands,p.brandAreas,p.wayOfOp,p.submittedAt,"pending"]]})
     });
-  } catch(e){ console.log("New DB sync error:",e); }
+  } catch(e){ console.log("New DB sync:",e); }
 }
 
 // ── TRACKER ───────────────────────────────────────────────────
