@@ -1072,6 +1072,16 @@ function renderAdminHome() {
 
 function _renderAdminRSMCard(r, idx) {
   const l3m = _getL3MBars(r.name);
+  const sortBy = ADMIN_STATE.sortBy;
+  // Primary metric shown in top-right based on active tab
+  const primaryMetric = sortBy==="ssdb"     ? {val:r.secPct+"%",   lbl:"SS-DB"}
+                      : sortBy==="dbretail"  ? {val:r.priPct+"%",   lbl:"DB Retail"}
+                      : sortBy==="routes"    ? {val:r.rts.active+"/"+r.rts.planned, lbl:"Routes"}
+                      :                        {val:r.score,         lbl:"Score"};
+  const primaryColor = sortBy==="routes"
+    ? _barColor(_pct(r.rts.active, r.rts.planned))
+    : sortBy==="overall" ? _scoreColor(r.score)
+    : _barColor(sortBy==="ssdb" ? r.secPct : r.priPct);
   const borderStyle = r.score<50 ? "border-color:#F09595" : "";
   const pjpStr = r.pjp!=null ? r.pjp+"%" : "—";
 
@@ -1082,12 +1092,12 @@ function _renderAdminRSMCard(r, idx) {
 
   const kpiHTML = `
     <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-bottom:8px">
-      <div style="background:var(--bg);border-radius:6px;padding:7px 9px">
+      <div style="background:var(--bg);border-radius:6px;padding:7px 9px;${sortBy==='ssdb'?'border:0.5px solid #97C459':''}" >
         <div style="font-size:10px;color:var(--text2)">SS-DB secondary</div>
         <div style="font-size:12px;font-weight:700;margin-top:2px;color:${_barColor(r.secPct)}">${r.secPct}%</div>
         ${barHTML(r.secPct,_barColor(r.secPct))}
       </div>
-      <div style="background:var(--bg);border-radius:6px;padding:7px 9px">
+      <div style="background:var(--bg);border-radius:6px;padding:7px 9px;${sortBy==='dbretail'?'border:0.5px solid #97C459':''}">
         <div style="font-size:10px;color:var(--text2)">DB retail</div>
         <div style="font-size:12px;font-weight:700;margin-top:2px;color:${_barColor(r.priPct)}">${r.priPct}%</div>
         ${barHTML(r.priPct,_barColor(r.priPct))}
@@ -1107,7 +1117,7 @@ function _renderAdminRSMCard(r, idx) {
         <div style="font-size:12px;font-weight:700;margin-top:2px">${r.vac.none?"—":("₹"+Math.round(r.vac.ach/100000*10)/10+"L / ₹"+Math.round(r.vac.tgt/100000*10)/10+"L")}</div>
         ${!r.vac.none?barHTML(_pct(r.vac.ach,r.vac.tgt),_barColor(_pct(r.vac.ach,r.vac.tgt))):""}
       </div>
-      <div style="background:var(--bg);border-radius:6px;padding:7px 9px">
+      <div style="background:var(--bg);border-radius:6px;padding:7px 9px;${sortBy==='routes'?'border:0.5px solid #1D9E75':''}">
         <div style="font-size:10px;color:var(--text2)">Routes</div>
         <div style="font-size:12px;font-weight:700;margin-top:2px">${r.rts.active}/${r.rts.planned} <span style="font-size:10px;font-weight:400;color:var(--text2)">active/planned</span></div>
         ${barHTML(_pct(r.rts.active,r.rts.planned),"#1D9E75")}
@@ -1134,7 +1144,10 @@ function _renderAdminRSMCard(r, idx) {
           <div style="font-size:13px;font-weight:700">${r.dispName}</div>
           <div style="font-size:11px;color:var(--text2)">${r.zone}</div>
         </div>
-        <div style="width:34px;height:34px;border-radius:50%;border:2px solid ${_scoreColor(r.score)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${_scoreColor(r.score)};flex-shrink:0">${r.score}</div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:16px;font-weight:700;color:${primaryColor}">${primaryMetric.val}</div>
+          <div style="font-size:10px;color:var(--text2)">${primaryMetric.lbl}</div>
+        </div>
       </div>
       ${kpiHTML}
       ${trendHTML}
