@@ -392,8 +392,8 @@ const FY_MONTHS_ORDER = MONTHS;
 const MONTH_TO_QTR = {Apr:"Q1",May:"Q1",Jun:"Q1",Jul:"Q2",Aug:"Q2",Sep:"Q2",Oct:"Q3",Nov:"Q3",Dec:"Q3",Jan:"Q4",Feb:"Q4",Mar:"Q4"};
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat"];
 // Focus SKU constants — always defined here so they're available before data.js
-const FOCUS_SKUS     = ["10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
-const FOCUS_SKU_KEYS = ["mrp10","papdiGathiya","chilliWheel","puffGarlic"];
+const FOCUS_SKUS     = ["Total","10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
+const FOCUS_SKU_KEYS = ["total","mrp10","papdiGathiya","chilliWheel","puffGarlic"];
 
 // ── USER STORE + MASTER DATA ──────────────────────────────────
 // Loaded from data.js — edit that file to change RSMs/PINs/DBs
@@ -2863,14 +2863,19 @@ async function loadRSMDataFromSheet() {
         if(!entRes.ok) continue;
         const entCSV = await entRes.text();
         const allEntRows = parseCSV(entCSV);
-        // Auto-detect: find first row where col B is "SS" or "DB" or col B header
-        let entSkip = 1;
-        for(let i=0;i<Math.min(4,allEntRows.length);i++){
+        // Auto-detect header row
+        // Row structure: row0=title, row1=subtitle, row2=headers, row3+=data
+        // Find header row by looking for "Type" or "SS/DB" in col B
+        let entSkip = 3; // default: skip 3 rows (title + subtitle + header)
+        for(let i=0;i<Math.min(5,allEntRows.length);i++){
           const b = (allEntRows[i][1]||"").trim().toUpperCase();
-          if(b==="SS"||b==="DB") { entSkip=i; break; }
-          if(b==="TYPE (SS/DB)"||b==="TYPE") { entSkip=i+1; break; }
+          const a = (allEntRows[i][0]||"").trim().toUpperCase();
+          // Found header row — data starts next row
+          if(b==="TYPE (SS/DB)"||b==="TYPE (SS / DB)"||b==="TYPE") { entSkip=i+1; break; }
+          // Found first data row directly — start here
+          if((b==="SS"||b==="DB") && a!=="") { entSkip=i; break; }
         }
-        const entRows = allEntRows.slice(entSkip).filter(r=>r[0]&&r[0].trim());
+        const entRows = allEntRows.slice(entSkip).filter(r=>r[0]&&r[0].trim()&&r[0].trim().charAt(0)!=="←");
 
         const ss=[], dbs=[];
         entRows.forEach((r,i)=>{
