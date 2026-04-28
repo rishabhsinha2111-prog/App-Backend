@@ -431,8 +431,8 @@ async function doLogin() {
   // First check local USERS (data.js — RSMs and manager)
   if (USERS[name]) {
     const user = USERS[name];
-    if (user.pin !== pin) {
-      $("login-err").textContent = "Name or PIN incorrect. Try again.";
+    if (user.pin.toString() !== pin.toString()) {
+      $("login-err").textContent = "PIN incorrect. Try again.";
       return;
     }
     _completeLogin(name, pin, user);
@@ -472,8 +472,12 @@ async function doLogin() {
 
   // Check again after Sheet fetch
   const user = USERS[name];
-  if (!user || user.pin !== pin) {
-    $("login-err").textContent = "Name or PIN incorrect. Try again.";
+  if (!user) {
+    $("login-err").textContent = "Name not found. Check spelling matches exactly.";
+    return;
+  }
+  if (user.pin.toString() !== pin.toString()) {
+    $("login-err").textContent = "PIN incorrect. Try again.";
     return;
   }
   _completeLogin(name, pin, user);
