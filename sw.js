@@ -1,10 +1,9 @@
 // ── Auto-versioned cache using deploy timestamp ───────────────
-// This file is fetched fresh on every page load (no-cache header set in vercel.json)
-// Changing ANY file in the repo triggers a Vercel redeploy which changes DEPLOY_TIME
-// So phones always get the new version within 60 seconds automatically
+// DEPLOY_TIME is injected by Vercel build — changes on every deploy
+// So the cache name is always unique per deployment — no manual bumping needed
 
-const DEPLOY_TIME = "__DEPLOY_TIME__"; // replaced at build time if using CI
-const CACHE = "salesops-v13"; // bump this manually when deploying updates
+const DEPLOY_TIME = typeof __DEPLOY_TIME__ !== "undefined" ? __DEPLOY_TIME__ : Date.now();
+const CACHE = `salesops-${DEPLOY_TIME}`;
 const ASSETS = [
   "/",
   "/index.html",
