@@ -232,6 +232,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
           <!-- Priority tasks -->
           <div class="slbl">Today's priority tasks</div>
           <div id="home-tasks" class="card" style="padding:0"></div>
+          <!-- Vacant areas -->
+          <div id="home-vacant" style="display:none"></div>
           <!-- Quick actions -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;margin-bottom:10px">
             <button class="btn btn-brand" onclick="goScr('tracker')">Enter data</button>
@@ -709,7 +711,7 @@ function calcRSMScore(rsmName, hist) {
   const yoyPts = Math.round(Math.min(Math.max((yoyGrowth + 0.5) / 0.5, 0), 1) * 20);
 
   // ── Component 3: Vacant Coverage (30pts) ─────────────────
-  const vacantDBs = master.dbs.filter(d=>d.area==="Vacant");
+  const vacantDBs = master.dbs.filter(d=>(d.area||"").toLowerCase()==="vacant");
   let vacantBilled = 0;
   vacantDBs.forEach(db=>{
     const row=(hist[db.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
@@ -845,6 +847,45 @@ function renderHome() {
           </div>
         </div>`).join("")
     : `<div style="padding:12px 13px;font-size:13px;color:var(--text2)">✓ All clear — no urgent tasks</div>`;
+
+  // ── Vacant areas section ──────────────────────────────────
+  const vacantDBs = master.dbs.filter(d=>(d.area||"").toLowerCase()==="vacant");
+  const vacantEl = $("home-vacant");
+  if(!vacantEl) return;
+
+  if(vacantDBs.length === 0) {
+    vacantEl.style.display = "none";
+    return;
+  }
+
+  vacantEl.style.display = "block";
+  vacantEl.innerHTML = `
+    <div class="slbl" style="margin-top:14px">Vacant areas <span style="background:#DCE8FF;color:#1A3A8B;border-radius:4px;font-size:10px;padding:1px 7px;font-weight:500;margin-left:4px">${vacantDBs.length}</span></div>
+    <div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden">
+      ${vacantDBs.map((db,i)=>{
+        const row=(hist[db.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
+        const ach = row ? Math.round((row.achieved||0)/100000*10)/10 : 0;
+        const tgt = Math.round((db.priTgt||0)/100000*10)/10;
+        const hasBilling = ach > 0;
+        return `
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 13px;${i>0?'border-top:0.5px solid var(--border)':''}">
+            <div style="width:32px;height:32px;border-radius:50%;background:#DCE8FF;color:#1A3A8B;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">
+              ${db.name.slice(0,2).toUpperCase()}
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${db.name}</div>
+              <div style="font-size:11px;color:var(--text2)">${db.town||"—"}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              ${hasBilling
+                ? `<div style="font-size:11px;font-weight:600;color:#3B6D11">₹${ach}L billed</div><div style="font-size:10px;color:var(--text2)">of ₹${tgt}L target</div>`
+                : `<span style="background:#FEE2E2;color:#991B1B;border-radius:4px;font-size:10px;padding:2px 8px;font-weight:500">No billing</span>`
+              }
+            </div>
+          </div>`;
+      }).join("")}
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-top:6px;padding:0 2px">Tap 'Add DB' to propose a distributor for these areas</div>`;
 }
 
 // ── ADMIN STATE ──────────────────────────────────────────────
@@ -1596,7 +1637,7 @@ function renderTrackerFields() {
     const typeTag = type==="ss"
       ? `<span class="b b-b" style="font-size:9px">SS</span>`
       : `<span class="b b-g" style="font-size:9px">DB</span>`;
-    const vacTag  = ent.area==="Vacant" ? `<span class="b b-b" style="font-size:9px">Vacant</span>` : "";
+    const vacTag  = (ent.area||"").toLowerCase()==="vacant" ? `<span class="b b-b" style="font-size:9px">Vacant</span>` : "";
     const mustTag = ent.mustVisit ? `<span class="b b-a" style="font-size:9px">Must visit</span>` : "";
 
     return `<div class="card" style="margin-bottom:8px">
