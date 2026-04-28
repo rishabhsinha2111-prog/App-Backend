@@ -850,6 +850,8 @@ function renderHome() {
 
   // ── Vacant areas section ──────────────────────────────────
   const vacantDBs = master.dbs.filter(d=>(d.area||"").toLowerCase()==="vacant");
+  console.log("Vacant DBs found:", vacantDBs.length, vacantDBs.map(d=>d.name+"|"+d.area));
+  console.log("All DB areas:", master.dbs.map(d=>d.name+":"+d.area));
   const vacantEl = $("home-vacant");
   if(!vacantEl) return;
 
