@@ -2865,7 +2865,16 @@ async function loadRSMDataFromSheet() {
           // Found first data row directly — start here
           if((b==="SS"||b==="DB") && a!=="") { entSkip=i; break; }
         }
-        const entRows = allEntRows.slice(entSkip).filter(r=>r[0]&&r[0].trim()&&r[0].trim().charAt(0)!=="←");
+        const entRows = allEntRows.slice(entSkip).filter(r=>{
+          if(!r[0]||!r[0].trim()) return false;
+          const first = r[0].trim().charAt(0);
+          // Skip note/footer rows
+          if(first==="←"||first==="↑"||first==="↓"||first==="*") return false;
+          // Must have a valid type in col B (SS or DB) or no type (treat as DB)
+          const t = (r[1]||"").trim().toUpperCase();
+          if(t && t!=="SS" && t!=="DB") return false;
+          return true;
+        });
 
         const ss=[], dbs=[];
         entRows.forEach((r,i)=>{
