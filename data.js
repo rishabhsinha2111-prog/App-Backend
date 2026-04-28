@@ -47,6 +47,10 @@ const MASTER = {
       {id:"db_raj_16",name:"MANE ENTERPRISES,BHOR",ssId:"ss_raj_1",priTgt:250000,area:"Active",mustVisit:false},
       {id:"db_raj_17",name:"AARYA DISTRIBUTORS,SHIRUR",ssId:"ss_raj_2",priTgt:150000,area:"Active",mustVisit:false},
       {id:"db_raj_18",name:"Vimal Trading Co. Bhandgaon",ssId:"ss_raj_3",priTgt:250000,area:"Active",mustVisit:false},
+      {id:"db_raj_19",name:"R S Distributor",ssId:"ss_raj_4",priTgt:250000,area:"Active",mustVisit:false},
+      {id:"db_raj_20",name:"Hadapsar",ssId:"ss_raj_1",priTgt:0,area:"Vacant",mustVisit:false},
+      {id:"db_raj_21",name:"Vimanagar",ssId:"ss_raj_2",priTgt:0,area:"Vacant",mustVisit:false},
+      {id:"db_raj_22",name:"Satara Road",ssId:"ss_raj_3",priTgt:0,area:"Vacant",mustVisit:false},
     ]
   },
   "shivaji tamgale": {
@@ -210,4 +214,50 @@ const MASTER = {
     ]
   },
   "rishabh sinha": {ss:[], dbs:[]}
+};
+// ── FOCUS SKU TARGETS ─────────────────────────────────────────
+// 4 Focus SKUs tracked monthly per RSM
+// Units: cases (or whatever unit your team uses)
+// Keys: total, mrp10, papdiGathiya, chilliWheel, puffGarlicHerb
+// Update monthly — these are Apr 2026 targets
+const FOCUS_SKUS = ["Total","10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
+const FOCUS_SKU_KEYS = ["total","mrp10","papdiGathiya","chilliWheel","puffGarlic"];
+
+const FOCUS_SKU_TARGETS = {
+  "rajesh upadhyay": {
+    month:"Apr", fy:"FY2026-27",
+    total:500, mrp10:150, papdiGathiya:100, chilliWheel:100, puffGarlic:150
+  },
+  "shivaji tamgale": {
+    month:"Apr", fy:"FY2026-27",
+    total:400, mrp10:120, papdiGathiya:80, chilliWheel:80, puffGarlic:120
+  },
+  "sambhaji jadhav": {
+    month:"Apr", fy:"FY2026-27",
+    total:350, mrp10:100, papdiGathiya:70, chilliWheel:70, puffGarlic:110
+  },
+  "rahul chougule": {
+    month:"Apr", fy:"FY2026-27",
+    total:450, mrp10:130, papdiGathiya:90, chilliWheel:90, puffGarlic:140
+  },
+  "nandkumar shirgave": {
+    month:"Apr", fy:"FY2026-27",
+    total:600, mrp10:180, papdiGathiya:120, chilliWheel:120, puffGarlic:180
+  },
+  "chandpasha pathan": {
+    month:"Apr", fy:"FY2026-27",
+    total:300, mrp10:90, papdiGathiya:60, chilliWheel:60, puffGarlic:90
+  },
+  "vijay wagh": {
+    month:"Apr", fy:"FY2026-27",
+    total:350, mrp10:100, papdiGathiya:70, chilliWheel:70, puffGarlic:110
+  },
+  "syd. waseemuddin": {
+    month:"Apr", fy:"FY2026-27",
+    total:250, mrp10:70, papdiGathiya:50, chilliWheel:50, puffGarlic:80
+  },
+  "naresh lade": {
+    month:"Apr", fy:"FY2026-27",
+    total:200, mrp10:60, papdiGathiya:40, chilliWheel:40, puffGarlic:60
+  }
 };
