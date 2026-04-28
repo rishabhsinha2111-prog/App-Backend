@@ -220,8 +220,6 @@ const MASTER = {
 // Units: cases (or whatever unit your team uses)
 // Keys: total, mrp10, papdiGathiya, chilliWheel, puffGarlicHerb
 // Update monthly — these are Apr 2026 targets
-const FOCUS_SKUS = ["Total","10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
-const FOCUS_SKU_KEYS = ["total","mrp10","papdiGathiya","chilliWheel","puffGarlic"];
 
 const FOCUS_SKU_TARGETS = {
   "rajesh upadhyay": {
