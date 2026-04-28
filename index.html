@@ -2780,22 +2780,8 @@ async function loadRSMDataFromSheet() {
   const sheetId = STATE.sheetId;
   if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return false;
 
-  // Check 24h cache
-  const cacheKey = "rsmData_cache";
-  const tsKey    = "rsmData_ts";
-  const cached   = localStorage.getItem(cacheKey);
-  const ts       = +localStorage.getItem(tsKey)||0;
-  const AGE_24H  = 24*60*60*1000;
-
-  if(cached && Date.now()-ts < AGE_24H) {
-    try {
-      const parsed = JSON.parse(cached);
-      _applyRSMData(parsed);
-      console.log("RSM data loaded from cache");
-      return true;
-    } catch(e) { /* cache corrupt, re-fetch */ }
-  }
-
+  // Always fetch fresh from Sheet — no cache
+  // (Cache was causing stale data issues when Sheet is updated)
   try {
     const ss_ = $("sync-status"); if(ss_) ss_.textContent = "Loading RSM data...";
 
@@ -2903,10 +2889,6 @@ async function loadRSMDataFromSheet() {
     }
 
     const rsmData = {rsmList, entityMap, fetchedAt: Date.now()};
-
-    // Cache it
-    localStorage.setItem(cacheKey, JSON.stringify(rsmData));
-    localStorage.setItem(tsKey, Date.now().toString());
 
     _applyRSMData(rsmData);
     const ss2_ = $("sync-status"); if(ss2_) ss2_.textContent = "RSM data updated ✓";
