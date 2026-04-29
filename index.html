@@ -317,7 +317,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
           <div class="card-title">Add ad-hoc visit</div>
           <div class="field">
             <label class="field-label">Entity name</label>
-            <input type="text" id="adhoc-name" placeholder="DB or SS name">
+            <select id="adhoc-name">
+              <option value="">Select DB or SS...</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Type</label>
+            <select id="adhoc-type">
+              <option value="DB">DB</option>
+              <option value="SS">SS</option>
+              <option value="Vacant">Vacant area</option>
+            </select>
           </div>
           <div class="field">
             <label class="field-label">Day</label>
@@ -2883,17 +2893,17 @@ function _renderPJPWeek() {
       </div>`;
   }
 
-  // Past days
-  const pastDays = DAYS.filter(d=>dayMap[d]<todayNum && byDay[d].length);
+  // Past days — show ALL days before today (even with 0 visits)
+  const pastDays = DAYS.filter(d=>dayMap[d]<todayNum);
   $("pjp-past").innerHTML = pastDays.length ? `
     <div class="slbl">Past days</div>
-    ${pastDays.map(d=>_dayBlock(d, byDay[d], false)).join("")}` : "";
+    ${pastDays.map(d=>_dayBlock(d, byDay[d]||[], false)).join("")}` : "";
 
-  // Upcoming days
-  const upcomingDays = DAYS.filter(d=>dayMap[d]>todayNum && byDay[d].length);
+  // Upcoming days — show ALL days after today (even with 0 visits)
+  const upcomingDays = DAYS.filter(d=>dayMap[d]>todayNum);
   $("pjp-upcoming").innerHTML = upcomingDays.length ? `
     <div class="slbl">Upcoming</div>
-    ${upcomingDays.map(d=>_dayBlock(d, byDay[d], false)).join("")}` : "";
+    ${upcomingDays.map(d=>_dayBlock(d, byDay[d]||[], false)).join("")}` : "";
 }
 
 function _dayBlock(day, visits, expanded) {
@@ -3037,17 +3047,55 @@ async function syncPJPToSheet(visit) {
 // ── AD-HOC VISIT ──────────────────────────────────────────────
 function showAddVisit() {
   const f = $("pjp-add-form");
-  f.style.display = f.style.display==="none"?"block":"none";
+  const isHidden = f.style.display==="none";
+  f.style.display = isHidden ? "block" : "none";
+  if(!isHidden) return;
+  // Populate entity dropdown
+  const master = MASTER[STATE.user.name];
+  if(!master) return;
+  const sel = $("adhoc-name");
+  sel.innerHTML = '<option value="">Select entity...</option>';
+  // DBs
+  const dbGroup = document.createElement("optgroup");
+  dbGroup.label = "DBs";
+  (master.dbs||[]).forEach(db=>{
+    const o = document.createElement("option");
+    o.value = db.name; o.textContent = db.name;
+    o.dataset.type = (db.area||"").toLowerCase()==="vacant" ? "Vacant" : "DB";
+    o.dataset.ss = db.ssId ? (master.ss||[]).find(s=>s.id===db.ssId)?.name||"" : "";
+    dbGroup.appendChild(o);
+  });
+  sel.appendChild(dbGroup);
+  // SSs
+  const ssGroup = document.createElement("optgroup");
+  ssGroup.label = "SSs";
+  (master.ss||[]).forEach(ss=>{
+    const o = document.createElement("option");
+    o.value = ss.name; o.textContent = ss.name;
+    o.dataset.type = "SS"; o.dataset.ss = ss.name;
+    ssGroup.appendChild(o);
+  });
+  sel.appendChild(ssGroup);
+  // Auto-update type when selection changes
+  sel.onchange = () => {
+    const opt = sel.options[sel.selectedIndex];
+    const typeEl = $("adhoc-type");
+    if(typeEl && opt.dataset.type) typeEl.value = opt.dataset.type;
+  };
 }
 
 function saveAdHocVisit() {
-  const name = $("adhoc-name").value.trim();
+  const sel = $("adhoc-name");
+  const name = sel.value.trim();
   const day  = $("adhoc-day").value;
+  const type = $("adhoc-type")?.value || "DB";
   if(!name) return;
+  const opt = sel.options[sel.selectedIndex];
+  const ssName = opt?.dataset?.ss || "";
   const wk = STATE.curPJPWeek || _autoWeekLabel();
   if(!STATE.pjpExec[wk]) STATE.pjpExec[wk]=[];
   STATE.pjpExec[wk].push({
-    week:wk, day, db:name, ss:"Ad-hoc", town:"",
+    week:wk, day, db:name, ss:ssName||"Ad-hoc", town:"",
     score:0, mustVisit:false, status:"pending",
     note:"", lat:null, lng:null, geoTs:null, adhoc:true
   });
