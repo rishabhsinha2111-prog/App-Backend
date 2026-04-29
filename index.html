@@ -2485,8 +2485,8 @@ function renderTrendL3M() {
   // Build entity card for a single DB (used in SO grouping)
   const buildL3MCard = (ent) => {
     const isOpen = STATE.expanded[ent.id]||false;
-    const tyRows = getHistData(ent.id, r=>l3mMonths.some(m=>m.mon===r.month&&m.yr===r.yr) && r.weekLabel==="Monthly");
-    const lyRows = getHistData(ent.id, r=>l3mMonths.some(m=>m.mon===r.month&&m.yr===r.yr-1) && r.weekLabel==="Monthly");
+    const tyRows = getHistData(ent.id, r=>l3mMonths.includes(r.month) && r.weekLabel==="Monthly");
+    const lyRows = getHistData(ent.id, r=>l3mMonths.includes(r.month) && r.weekLabel==="Monthly" && r.yr===(curYearNum()-1));
     const tyVal = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
     const lyVal = lyRows.reduce((a,r)=>a+(r.achieved||0),0);
     const diff = lyVal>0?Math.round((tyVal-lyVal)/lyVal*100):null;
@@ -2514,7 +2514,7 @@ function renderTrendL3M() {
         return ent ? buildL3MCard(ent) : "";
       }, (db) => {
         // L3M avg pct for badge
-        const tyRows = getHistData(db.id, r=>l3mMonths.some(m=>m.mon===r.month&&m.yr===r.yr)&&r.weekLabel==="Monthly");
+        const tyRows = getHistData(db.id, r=>l3mMonths.includes(r.month)&&r.weekLabel==="Monthly");
         const tyVal = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
         if(!db.priTgt||!tyVal) return null;
         return Math.round(tyVal/db.priTgt*100);
