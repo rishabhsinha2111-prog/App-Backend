@@ -2204,9 +2204,18 @@ function _renderSOGroupedList(groups, renderDBCard, getAvgPct) {
       });
     }
     const avg = totalTgt > 0 ? Math.round(totalAch/totalTgt*100) : null;
-    const badgeBg = g.isVacant?"#DCE8FF":avg===null?"var(--color-background-secondary)":avg>=70?"#EAF3DE":avg>=40?"#FEF3C7":"#FEE2E2";
-    const badgeTx = g.isVacant?"#1A3A8B":avg===null?"var(--text2)":avg>=70?"#27500A":avg>=40?"#92400E":"#991B1B";
-    const badgeTxt = g.isVacant?"No billing":avg===null?"—":avg+"%";
+    // avg = TY/LY ratio when showing growth, or TY/Target when showing achievement
+    // We detect growth mode by checking if getAvgPct returns {ach,tgt} where tgt=LY
+    const isGrowth = getAvgPct && totalTgt > 0;
+    const growthPct = isGrowth ? Math.round((totalAch-totalTgt)/totalTgt*100) : avg;
+    const badgeBg = g.isVacant?"#DCE8FF":avg===null?"var(--color-background-secondary)":
+      isGrowth ? (growthPct>=0?"#EAF3DE":"#FEE2E2") :
+      avg>=70?"#EAF3DE":avg>=40?"#FEF3C7":"#FEE2E2";
+    const badgeTx = g.isVacant?"#1A3A8B":avg===null?"var(--text2)":
+      isGrowth ? (growthPct>=0?"#27500A":"#991B1B") :
+      avg>=70?"#27500A":avg>=40?"#92400E":"#991B1B";
+    const badgeTxt = g.isVacant?"No billing":avg===null?"—":
+      isGrowth ? (growthPct>=0?"+"+growthPct+"%":growthPct+"%") : avg+"%";
 
     return `
       <div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);margin-bottom:7px;overflow:hidden">
@@ -2362,10 +2371,12 @@ function renderTrendMonthly() {
       },
       (db) => {
          }, (db) => {
+        // Monthly: YoY growth — TY vs LY ₹
         const tyData = getHistData(db.id, r=>r.fy===STATE.curFY&&r.weekLabel==="Monthly");
-        const ach = tyData.reduce((a,r)=>a+(r.achieved||0),0);
-        const months = new Set(tyData.map(r=>r.month)).size || 1;
-        return {ach, tgt:(db.priTgt||0)*months};
+        const fys = [...new Set(Object.values(STATE.history).flat().map(r=>r.fy).filter(Boolean))].sort();
+        const prevFY2 = fys[fys.indexOf(STATE.curFY)-1]||null;
+        const lyData = prevFY2 ? getHistData(db.id, r=>r.fy===prevFY2&&r.weekLabel==="Monthly") : [];
+        return {ach:tyData.reduce((a,r)=>a+(r.achieved||0),0), tgt:lyData.reduce((a,r)=>a+(r.achieved||0),0)};
       });
     }
   }
@@ -2523,9 +2534,10 @@ function renderTrendL3M() {
         return ent ? buildL3MCard(ent) : "";
       }, (db) => {
         const tyRows = getHistData(db.id, r=>l3mMonths.includes(r.month)&&r.weekLabel==="Monthly"&&r.fy===getFYFromMonth(r.month,curYearNum()));
+        const lyRows = getHistData(db.id, r=>l3mMonths.includes(r.month)&&r.weekLabel==="Monthly"&&r.fy===getFYFromMonth(r.month,curYearNum()-1));
         const ach = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
-        const tgt = (db.priTgt||0) * 3;
-        return {ach, tgt};
+        const ly  = lyRows.reduce((a,r)=>a+(r.achieved||0),0);
+        return {ach, tgt:ly}; // tgt = LY so badge shows TY/LY growth
       });
     }
   }
