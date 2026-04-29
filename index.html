@@ -2123,6 +2123,108 @@ function getFYFromMonth(month, year) {
 }
 
 // ── VIEW 1: Monthly LY vs TY ──────────────────────────────────
+
+// ── SO GROUPING HELPER FOR TRENDS ────────────────────────────
+function _groupDBsBySO(dbs, rsmName) {
+  // Group DBs by SO name
+  const groups = {};
+  const soOrder = [];
+
+  dbs.forEach(db => {
+    const soName = (db.soName||"").trim().toLowerCase();
+    const key = soName || "__direct__";
+    const isVacant = (db.area||"").toLowerCase() === "vacant";
+    const groupKey = isVacant ? "__vacant__" : key;
+
+    if(!groups[groupKey]) {
+      groups[groupKey] = {dbs:[], soName:soName, isVacant, isDirect:!soName&&!isVacant};
+      soOrder.push(groupKey);
+    }
+    groups[groupKey].dbs.push(db);
+  });
+
+  // Sort: SOs first (alphabetical), then Direct, then Vacant
+  soOrder.sort((a,b) => {
+    if(a==="__vacant__") return 1;
+    if(b==="__vacant__") return -1;
+    if(a==="__direct__") return 1;
+    if(b==="__direct__") return -1;
+    return a.localeCompare(b);
+  });
+
+  return soOrder.map(key => ({key, ...groups[key]}));
+}
+
+function _soDispName(soName) {
+  return soName.split(" ").map(w=>w[0].toUpperCase()+w.slice(1)).join(" ");
+}
+
+function _soInitials(soName) {
+  return soName.split(" ").map(w=>w[0].toUpperCase()).join("").slice(0,2);
+}
+
+function _soAvColors(i) {
+  const bgs = ["#B5D4F4","#C0DD97","#FAC775","#F4C0D1","#9FE1CB","#F5C4B3"];
+  const txs = ["#0C447C","#27500A","#633806","#72243E","#085041","#712B13"];
+  return {bg:bgs[i%bgs.length], tx:txs[i%txs.length]};
+}
+
+function _renderSOGroupedList(groups, renderDBCard) {
+  return groups.map((g, gi) => {
+    const isOpen = STATE.expanded["so_"+g.key] !== false; // default open for first, closed for rest
+    if(gi > 0 && STATE.expanded["so_"+g.key] === undefined) STATE.expanded["so_"+g.key] = false;
+
+    let hdrBg, hdrTx, initials, label, sublabel;
+    if(g.isVacant) {
+      hdrBg="#DCE8FF"; hdrTx="#1A3A8B"; initials="V";
+      label="Vacant areas"; sublabel=`${g.dbs.length} areas · no DB appointed`;
+    } else if(g.isDirect) {
+      hdrBg="var(--bg)"; hdrTx="var(--text2)"; initials="—";
+      label="Direct (no SO)"; sublabel=`${g.dbs.length} DBs · RSM handles`;
+    } else {
+      const c = _soAvColors(gi);
+      hdrBg=c.bg; hdrTx=c.tx;
+      initials=_soInitials(g.soName);
+      label=_soDispName(g.soName);
+      sublabel=`SO · ${g.dbs.length} DBs`;
+    }
+
+    // Calc avg % for badge
+    const dbCards = g.dbs.map(db => renderDBCard(db)).filter(Boolean);
+    const avgPcts = g.dbs.map(db => {
+      const hist = STATE.history;
+      const curMonth = curMonthStr();
+      const curFY = getFYFromMonth(curMonth, curYearNum());
+      const row = (hist[db.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
+      if(!row||!db.priTgt) return null;
+      return Math.round((row.achieved||0)/db.priTgt*100);
+    }).filter(v=>v!==null);
+    const avg = avgPcts.length ? Math.round(avgPcts.reduce((a,b)=>a+b,0)/avgPcts.length) : null;
+    const badgeBg = g.isVacant?"#DCE8FF":avg===null?"var(--bg)":avg>=70?"#EAF3DE":avg>=40?"#FEF3C7":"#FEE2E2";
+    const badgeTx = g.isVacant?"#1A3A8B":avg===null?"var(--text2)":avg>=70?"#27500A":avg>=40?"#92400E":"#991B1B";
+    const badgeTxt = g.isVacant?"No billing":avg===null?"—":avg+"%";
+
+    return `
+      <div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);margin-bottom:7px;overflow:hidden">
+        <div onclick="toggleSOGroup('${g.key}')" style="display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;${isOpen?'border-bottom:0.5px solid var(--border)':''}">
+          <div style="width:28px;height:28px;border-radius:50%;background:${hdrBg};color:${hdrTx};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${initials}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700">${label}</div>
+            <div style="font-size:11px;color:var(--text2)">${sublabel}</div>
+          </div>
+          <span style="background:${badgeBg};color:${badgeTx};border-radius:4px;font-size:10px;padding:2px 8px;font-weight:700">${badgeTxt}</span>
+          <span style="font-size:12px;color:var(--text2);margin-left:2px">${isOpen?"▾":"▸"}</span>
+        </div>
+        ${isOpen ? dbCards.join("") : ""}
+      </div>`;
+  }).join("");
+}
+
+function toggleSOGroup(key) {
+  STATE.expanded["so_"+key] = !STATE.expanded["so_"+key];
+  renderTrends();
+}
+
 function renderTrendMonthly() {
   const {entities, rsmName} = getEntities();
   const avCls = STATE.trendEntView === "ss" ? "av-b" : "av-g";
@@ -2206,10 +2308,61 @@ function renderTrendMonthly() {
     </div>`;
   }).join("");
 
+  // For DB-wise: wrap in SO groups
+  let finalCards = entCards;
+  if(STATE.trendEntView === "db") {
+    const master = MASTER[rsmName];
+    if(master) {
+      const groups = _groupDBsBySO(master.dbs, rsmName);
+      finalCards = _renderSOGroupedList(groups, (db) => {
+        return entCards.includes(db.id) ? "" :
+          entities.find(e=>e.id===db.id) ?
+            entCards.split(db.id)[0].split('<div class="ent">').slice(-1)[0].split('</div>').slice(0,5).join('</div>')+"</div>" : "";
+      });
+      // Rebuild properly — map groups to their entity cards
+      finalCards = _renderSOGroupedList(groups, (db) => {
+        const ent = entities.find(e=>e.id===db.id);
+        if(!ent) return "";
+        const isOpen = STATE.expanded[ent.id]||false;
+        const tyData = getHistData(ent.id, r=>r.fy===STATE.curFY && r.weekLabel==="Monthly");
+        const lyData = prevFY ? getHistData(ent.id, r=>r.fy===prevFY && r.weekLabel==="Monthly") : [];
+        const tyTotal_ = tyData.reduce((a,r)=>a+(r.achieved||0),0);
+        const lyTotal_ = lyData.reduce((a,r)=>a+(r.achieved||0),0);
+        const yoyGrowth = lyTotal_ > 0 ? Math.round((tyTotal_-lyTotal_)/lyTotal_*100) : null;
+        const yoyBadge = yoyGrowth!=null
+          ? (yoyGrowth>=0?`<span class="b b-g">+${yoyGrowth}% YoY</span>`:`<span class="b b-r">${yoyGrowth}% YoY</span>`)
+          : `<span class="b b-gray">No LY</span>`;
+        const tyAvg = tyData.filter(r=>r.achPct!=null).length
+          ? Math.round(tyData.filter(r=>r.achPct!=null).reduce((a,r)=>a+(r.achPct||0),0)/tyData.filter(r=>r.achPct!=null).length*100) : 0;
+        const allAch=[...tyData,...lyData].map(r=>r.achieved||0);
+        const maxAch=Math.max(...allAch,1);
+        const monthBars=MONTHS.map(m=>{
+          const ty=tyData.find(r=>r.month===m); const ly=lyData.find(r=>r.month===m);
+          if(!ty&&!ly) return "";
+          const tyA=ty?ty.achieved||0:0; const lyA=ly?ly.achieved||0:0;
+          const tyW=Math.round((tyA/maxAch)*100); const lyW=Math.round((lyA/maxAch)*100);
+          const mo_growth=lyA>0?Math.round((tyA-lyA)/lyA*100):null;
+          const growthTag=mo_growth!=null?` <span style="font-size:9px;font-weight:700;color:${mo_growth>=0?"var(--green)":"var(--red)"}">${mo_growth>=0?"+":""}${mo_growth}%</span>`:"";
+          const tyLabel=(ty&&ty.achPct!=null)?Math.round(ty.achPct*100)+"%":(tyA>0?fmt(tyA):"—");
+          const lyLabel=(ly&&ly.achPct!=null)?Math.round(ly.achPct*100)+"%":(lyA>0?fmt(lyA):"—");
+          return `<div class="cmp-row"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="font-weight:700">${m}${growthTag}</span><span style="color:var(--text2);font-size:10px">${fmt(tyA)} vs ${fmt(lyA)}</span></div><div class="cmp-bar-row"><span class="cmp-yr">TY</span><div class="cmp-bar-wrap"><div class="cmp-bar-fill" style="width:${tyW}%;background:var(--brand)"></div></div><span class="cmp-val" style="color:var(--brand)">${tyLabel}</span></div><div class="cmp-bar-row"><span class="cmp-yr">LY</span><div class="cmp-bar-wrap"><div class="cmp-bar-fill" style="width:${lyW}%;background:var(--border)"></div></div><span class="cmp-val" style="color:var(--text2)">${lyLabel}</span></div></div>`;
+        }).join("");
+        return `<div class="ent" style="border-radius:0;border:none;border-bottom:0.5px solid var(--border);margin:0">
+          <div class="ent-hdr" onclick="toggleEnt('${ent.id}')">
+            <div class="av av-g">${ent.name.slice(0,2).toUpperCase()}</div>
+            <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ent.name}</div><div style="font-size:11px;color:var(--text2)">YoY: ${yoyBadge}</div></div>
+            <div style="display:flex;align-items:center;gap:6px"><span class="b ${pcls(tyAvg)}">${tyAvg}%</span><span style="font-size:14px;color:var(--text2)">${isOpen?"▾":"▸"}</span></div>
+          </div>
+          ${isOpen?`<div class="ent-body"><div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px">MONTHLY — TY vs LY</div>${monthBars||`<div style="font-size:12px;color:var(--text2)">No data yet</div>`}</div>`:""}
+        </div>`;
+      });
+    }
+  }
+
   $("trend-content").innerHTML = `
     <div style="display:flex;gap:5px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px">${fyPills}</div>
     <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Tap any card to see month-by-month breakdown</div>
-    ${entCards || `<div class="card" style="color:var(--text2);text-align:center;padding:20px">No entities found</div>`}`;
+    ${finalCards || `<div class="card" style="color:var(--text2);text-align:center;padding:20px">No entities found</div>`}`;
 }
 
 function selectFY(fy, btn) {
@@ -2327,9 +2480,43 @@ function renderTrendL3M() {
     </div>`;
   }).join("");
 
+  // Build entity card for a single DB (used in SO grouping)
+  const buildL3MCard = (ent) => {
+    const isOpen = STATE.expanded[ent.id]||false;
+    const tyRows = getHistData(ent.id, r=>l3mMonths.some(m=>m.mon===r.month&&m.yr===r.yr) && r.weekLabel==="Monthly");
+    const lyRows = getHistData(ent.id, r=>l3mMonths.some(m=>m.mon===r.month&&m.yr===r.yr-1) && r.weekLabel==="Monthly");
+    const tyVal = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
+    const lyVal = lyRows.reduce((a,r)=>a+(r.achieved||0),0);
+    const diff = lyVal>0?Math.round((tyVal-lyVal)/lyVal*100):null;
+    const diffBadge = diff!=null?(diff>0?`<span class="b b-g">+${diff}%</span>`:diff<0?`<span class="b b-r">${diff}%</span>`:`<span class="b b-gray">flat</span>`):`<span class="b b-gray">No LY</span>`;
+    const l3mMax=Math.max(tyVal,lyVal,1);
+    const tyW=Math.round((tyVal/l3mMax)*100); const lyW=Math.round((lyVal/l3mMax)*100);
+    const monthBreakdown=tyRows.map(r=>`<span style="font-size:10px;color:var(--text2)">${r.month}: <b style="color:var(--text)">${fmt(r.achieved||0)}</b></span>`).join(" · ");
+    return `<div class="ent" style="border-radius:0;border:none;border-bottom:0.5px solid var(--border);margin:0">
+      <div class="ent-hdr" onclick="toggleEnt('${ent.id}')">
+        <div class="av ${avCls}">${ent.name.slice(0,2).toUpperCase()}</div>
+        <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ent.name}</div><div style="font-size:10px;color:var(--text2)">TY ${fmt(tyVal)} vs LY ${fmt(lyVal)}</div></div>
+        <div style="display:flex;align-items:center;gap:6px">${diffBadge}<span style="font-size:14px;color:var(--text2)">${isOpen?"▾":"▸"}</span></div>
+      </div>
+      ${isOpen?`<div class="ent-body"><div class="cmp-bar-row" style="margin-bottom:4px"><span class="cmp-yr">TY</span><div class="cmp-bar-wrap"><div class="cmp-bar-fill" style="width:${tyW}%;background:var(--brand)"></div></div><span class="cmp-val" style="color:var(--brand)">${fmt(tyVal)}</span></div><div class="cmp-bar-row" style="margin-bottom:8px"><span class="cmp-yr">LY</span><div class="cmp-bar-wrap"><div class="cmp-bar-fill" style="width:${lyW}%;background:var(--border)"></div></div><span class="cmp-val" style="color:var(--text2)">${fmt(lyVal)}</span></div><div style="display:flex;gap:10px;flex-wrap:wrap">${monthBreakdown}</div></div>`:""}
+    </div>`;
+  };
+
+  let finalCards = entCards;
+  if(STATE.trendEntView === "db") {
+    const master = MASTER[rsmName];
+    if(master) {
+      const groups = _groupDBsBySO(master.dbs, rsmName);
+      finalCards = _renderSOGroupedList(groups, (db) => {
+        const ent = entities.find(e=>e.id===db.id);
+        return ent ? buildL3MCard(ent) : "";
+      });
+    }
+  }
+
   $("trend-content").innerHTML = heroCard +
-    `<div class="slbl">${STATE.trendEntView.toUpperCase()}-wise L3M comparison</div>` +
-    (entCards || `<div class="card" style="color:var(--text2);text-align:center;padding:20px">No L3M data yet</div>`);
+    `<div class="slbl">${STATE.trendEntView==="db"?"DB-wise (grouped by SO)":STATE.trendEntView.toUpperCase()+"-wise"} L3M comparison</div>` +
+    (finalCards || `<div class="card" style="color:var(--text2);text-align:center;padding:20px">No L3M data yet</div>`);
 }
 
 // ── VIEW 3: Current month week-wise ───────────────────────────
@@ -2467,9 +2654,44 @@ function renderTrendWeekly() {
     </div>`;
   }).join("");
 
+  // Build card for single entity (used in SO grouping)
+  const buildWeeklyCard = (ent) => {
+    const wRows = getHistData(ent.id, r=>r.month===curMonthName&&r.yr===curYear&&r.weekLabel!=="Monthly");
+    const mRow  = getHistData(ent.id, r=>r.month===curMonthName&&r.yr===curYear&&r.weekLabel==="Monthly")[0];
+    const entTgt = STATE.trendEntView==="ss" ? (MASTER[rsmName]?.ss.find(s=>s.id===ent.id)?.secTgt||0) : (MASTER[rsmName]?.dbs.find(d=>d.id===ent.id)?.priTgt||0);
+    const rows = wRows.length ? wRows : (mRow ? [{...mRow, weekLabel:"W1"}] : []);
+    const mtd = wRows.length ? wRows.reduce((a,r)=>a+(r.achieved||0),0) : (mRow ? mRow.achieved||0 : 0);
+    const mtdP = entTgt>0?Math.round(mtd/entTgt*100):(mRow?.achPct?Math.round(mRow.achPct*100):0);
+    const wkValues=["W1","W2","W3","W4"].map(w=>rows.find(r=>r.weekLabel===w||r.weekLabel.startsWith(w+" ")));
+    const maxV=Math.max(...wkValues.map(r=>r?.achieved||0),1);
+    const isOpen=STATE.expanded[ent.id]||false;
+    const miniBars=wkValues.map((r,i)=>{const v=r?.achieved||0;const h=Math.round((v/maxV)*24);const isPast=i<curWeekIdx;const isCur=i===curWeekIdx;const bg=isPast?"var(--brand)":isCur?"var(--amber-bg)":"var(--border)";const brd=isCur?"border:1px solid var(--amber)":"";return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;height:${Math.max(4,h)}px;background:${bg};border-radius:2px 2px 0 0;${brd}"></div><div style="font-size:9px;color:var(--text2)">W${i+1}</div></div>`;}).join("");
+    const wkLabels=wkValues.map((r,i)=>r?`W${i+1}: <b style="color:${i===curWeekIdx?"var(--amber)":"var(--text)"}">${fmt(r.achieved||0)}</b>`:`W${i+1}: <b style="color:var(--text2)">—</b>`).join(" · ");
+    return `<div class="ent" style="border-radius:0;border:none;border-bottom:0.5px solid var(--border);margin:0">
+      <div class="ent-hdr" onclick="toggleEnt('${ent.id}')">
+        <div class="av ${avCls}">${ent.name.slice(0,2).toUpperCase()}</div>
+        <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ent.name}</div><div style="font-size:10px;color:var(--text2)">MTD: ${fmt(mtd)}${entTgt?" / "+fmt(entTgt):""}</div></div>
+        <div style="display:flex;align-items:center;gap:6px"><span class="b ${pcls(mtdP)}">${mtdP}%</span><span style="font-size:14px;color:var(--text2)">${isOpen?"▾":"▸"}</span></div>
+      </div>
+      ${isOpen?`<div class="ent-body"><div style="display:flex;gap:3px;height:32px;align-items:flex-end;margin-bottom:8px">${miniBars}</div><div style="font-size:10px;color:var(--text2);line-height:1.8">${wkLabels}</div></div>`:""}
+    </div>`;
+  };
+
+  let finalCards = entCards;
+  if(STATE.trendEntView === "db") {
+    const master = MASTER[rsmName];
+    if(master) {
+      const groups = _groupDBsBySO(master.dbs, rsmName);
+      finalCards = _renderSOGroupedList(groups, (db) => {
+        const ent = entities.find(e=>e.id===db.id);
+        return ent ? buildWeeklyCard(ent) : "";
+      });
+    }
+  }
+
   $("trend-content").innerHTML = heroCard +
-    `<div class="slbl">${STATE.trendEntView.toUpperCase()}-wise weekly drill-down</div>` +
-    (entCards || `<div class="card" style="color:var(--text2);text-align:center;padding:20px">No data for ${curMonthName} yet</div>`);
+    `<div class="slbl">${STATE.trendEntView==="db"?"DB-wise (grouped by SO)":STATE.trendEntView.toUpperCase()+"-wise"} weekly drill-down</div>` +
+    (finalCards || `<div class="card" style="color:var(--text2);text-align:center;padding:20px">No data for ${curMonthName} yet</div>`);
 }
 
 function toggleEnt(id) {
