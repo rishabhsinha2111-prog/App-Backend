@@ -820,11 +820,12 @@ function renderHome() {
       <div style="font-size:10px;color:var(--text2);margin-top:2px">${vacCov}% areas billed</div>
       <div style="font-size:10px;font-weight:600;color:#34d399;margin-top:4px">${S.vacantPts}/30 pts</div>
     </div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-left:3px solid #fbbf24">
+    <div onclick="renderSKUDrillDown()" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-left:3px solid #fbbf24;cursor:pointer;position:relative">
       <div style="font-size:10px;color:var(--text2);margin-bottom:4px">Focus SKU</div>
       <div style="font-size:22px;font-weight:800;color:${scoreColor(S.skuPts/30*100)}">${S.skuPts}<span style="font-size:13px;font-weight:600">/30</span></div>
       <div style="font-size:10px;color:var(--text2);margin-top:2px">Enter in Tracker</div>
       <div style="font-size:10px;font-weight:600;color:#fbbf24;margin-top:4px">${S.skuPts}/30 pts</div>
+      <div style="font-size:9px;color:var(--text2);margin-top:5px;font-style:italic">tap to expand DB-wise ↗</div>
     </div>`;
 
   // ── Priority tasks ────────────────────────────────────────
@@ -1565,6 +1566,99 @@ function onDayChange() {
   const sel = $("trk-day-select");
   STATE.trackerDateKey = sel.value || _todayKey();
   renderTrackerFields();
+}
+
+// ── SKU DRILL-DOWN ────────────────────────────────────────────
+function renderSKUDrillDown() {
+  const u = STATE.user;
+  const rsmName = u.role==="so"||u.role==="rsm" ? u.name : Object.keys(MASTER)[0];
+  const master  = MASTER[rsmName];
+  if(!master) return;
+
+  const hist    = STATE.history;
+  const curMonth= curMonthStr();
+  const curFY   = getFYFromMonth(curMonth, curYearNum());
+  const skuTgts = (typeof FOCUS_SKU_TARGETS!=="undefined") ? (FOCUS_SKU_TARGETS[rsmName]||{}) : {};
+  const SKU_KEYS= ["mrp10","papdiGathiya","chilliWheel","puffGarlic"];
+  const SKU_LBLS= ["10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic"];
+
+  // Total SKU summary
+  const totals = SKU_KEYS.map((k,i)=>{
+    let ach=0, tgt=+skuTgts[k]||0;
+    master.dbs.forEach(db=>{
+      const row=(hist[db.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
+      if(row) ach+=+row[k]||0;
+    });
+    const pct = tgt>0 ? Math.round(ach/tgt*100) : 0;
+    const col  = pct>=70?"#3B6D11":pct>=40?"#633806":"#791F1F";
+    const bar  = pct>=70?"#97C459":pct>=40?"#EF9F27":"#E24B4A";
+    return {lbl:SKU_LBLS[i], ach, tgt, pct, col, bar};
+  });
+
+  // DB-wise breakdown
+  const dbRows = master.dbs.map(db=>{
+    const row=(hist[db.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
+    const skus = SKU_KEYS.map((k,i)=>{
+      const ach = row ? (+row[k]||0) : 0;
+      const tgt = +skuTgts[k]||0; // use RSM-level target per SKU
+      const pct = tgt>0 ? Math.round(ach/tgt*100) : 0;
+      const col = pct>=70?"#3B6D11":pct>=40?"#633806":"#791F1F";
+      const bar = pct>=70?"#97C459":pct>=40?"#EF9F27":"#E24B4A";
+      return {lbl:SKU_LBLS[i], ach, tgt, pct, col, bar};
+    });
+    const billed = skus.filter(s=>s.ach>0).length;
+    const badgeBg = billed===4?"#EAF3DE":billed>=2?"#FEF3C7":"#FEE2E2";
+    const badgeTx = billed===4?"#27500A":billed>=2?"#92400E":"#991B1B";
+    return {db, skus, billed, badgeBg, badgeTx};
+  });
+
+  const homeEl = $("scr-home");
+  if(!homeEl) return;
+
+  homeEl.innerHTML = `
+    <div style="position:sticky;top:0;background:var(--card);border-bottom:0.5px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:10px;z-index:10">
+      <button onclick="renderHome()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text1);padding:0;line-height:1">←</button>
+      <div style="font-size:15px;font-weight:700;flex:1">Focus SKU — DB wise</div>
+      <div style="font-size:11px;color:var(--text2)">${curMonth} ${curYearNum()}</div>
+    </div>
+
+    <div style="padding:12px 14px">
+      <div class="slbl" style="margin-top:0">SKU summary</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
+        ${totals.map(s=>`
+          <div style="background:var(--bg);border-radius:var(--r);padding:9px 11px">
+            <div style="font-size:10px;color:var(--text2)">${s.lbl}</div>
+            <div style="font-size:16px;font-weight:700;color:${s.col};margin-top:2px">${s.pct}%</div>
+            <div style="font-size:10px;color:var(--text2)">${s.ach}/${s.tgt} cases</div>
+            <div style="height:3px;border-radius:2px;background:var(--border);overflow:hidden;margin-top:4px">
+              <div style="height:100%;width:${Math.min(s.pct,100)}%;background:${s.bar};border-radius:2px"></div>
+            </div>
+          </div>`).join("")}
+      </div>
+
+      <div class="slbl">DB-wise breakdown</div>
+      ${dbRows.map(r=>`
+        <div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden">
+          <div style="padding:9px 12px;border-bottom:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:13px;font-weight:600">${r.db.name}</div>
+              <div style="font-size:10px;color:var(--text2)">${r.db.town||"—"}</div>
+            </div>
+            <span style="background:${r.badgeBg};color:${r.badgeTx};border-radius:4px;font-size:10px;padding:2px 8px;font-weight:500">${r.billed}/4 SKUs</span>
+          </div>
+          <div style="padding:10px 12px">
+            ${r.skus.map(s=>`
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:${s===r.skus[r.skus.length-1]?0:6}px">
+                <div style="font-size:10px;color:var(--text2);width:82px;flex-shrink:0">${s.lbl}</div>
+                <div style="flex:1;height:3px;border-radius:2px;background:var(--border);overflow:hidden">
+                  <div style="height:100%;width:${Math.min(s.pct,100)}%;background:${s.bar};border-radius:2px"></div>
+                </div>
+                <div style="font-size:11px;font-weight:500;color:${s.col};width:30px;text-align:right">${s.ach}</div>
+                <div style="font-size:10px;color:var(--text2);width:28px;text-align:right">${s.pct}%</div>
+              </div>`).join("")}
+          </div>
+        </div>`).join("")}
+    </div>`;
 }
 
 function renderTracker() {
