@@ -758,7 +758,17 @@ function scoreLabel(s) {
 function renderHome() {
   const u = STATE.user;
   if(u.role==="manager"){ initAdminNav(); renderAdminHome(); return; }
-  // SO uses same home view as RSM — MASTER[so.name] is already filtered to their DBs
+
+  // Restore home div structure if SKU drill-down replaced it
+  const homeEl = $("scr-home");
+  if(!$("home-score-card") && homeEl) {
+    homeEl.innerHTML = `
+      <div id="home-score-card" style="margin-bottom:10px"></div>
+      <div id="home-kpi-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"></div>
+      <div class="slbl">Today's priority tasks</div>
+      <div id="home-tasks" class="card" style="padding:0"></div>
+      <div id="home-vacant" style="display:none"></div>`;
+  }
 
   const master = MASTER[u.name];
   if(!master) return;
