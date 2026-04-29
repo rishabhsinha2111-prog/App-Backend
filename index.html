@@ -2169,9 +2169,9 @@ function _soAvColors(i) {
   return {bg:bgs[i%bgs.length], tx:txs[i%txs.length]};
 }
 
-function _renderSOGroupedList(groups, renderDBCard) {
+function _renderSOGroupedList(groups, renderDBCard, getAvgPct) {
   return groups.map((g, gi) => {
-    const isOpen = STATE.expanded["so_"+g.key] !== false; // default open for first, closed for rest
+    const isOpen = STATE.expanded["so_"+g.key] !== false;
     if(gi > 0 && STATE.expanded["so_"+g.key] === undefined) STATE.expanded["so_"+g.key] = false;
 
     let hdrBg, hdrTx, initials, label, sublabel;
@@ -2189,18 +2189,13 @@ function _renderSOGroupedList(groups, renderDBCard) {
       sublabel=`SO · ${g.dbs.length} DBs`;
     }
 
-    // Calc avg % for badge
+    // Build DB cards
     const dbCards = g.dbs.map(db => renderDBCard(db)).filter(Boolean);
-    const avgPcts = g.dbs.map(db => {
-      const hist = STATE.history;
-      const curMonth = curMonthStr();
-      const curFY = getFYFromMonth(curMonth, curYearNum());
-      const row = (hist[db.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
-      if(!row||!db.priTgt) return null;
-      return Math.round((row.achieved||0)/db.priTgt*100);
-    }).filter(v=>v!==null);
+
+    // Avg % badge — use caller-provided function for correct period
+    const avgPcts = getAvgPct ? g.dbs.map(db=>getAvgPct(db)).filter(v=>v!==null) : [];
     const avg = avgPcts.length ? Math.round(avgPcts.reduce((a,b)=>a+b,0)/avgPcts.length) : null;
-    const badgeBg = g.isVacant?"#DCE8FF":avg===null?"var(--bg)":avg>=70?"#EAF3DE":avg>=40?"#FEF3C7":"#FEE2E2";
+    const badgeBg = g.isVacant?"#DCE8FF":avg===null?"var(--color-background-secondary)":avg>=70?"#EAF3DE":avg>=40?"#FEF3C7":"#FEE2E2";
     const badgeTx = g.isVacant?"#1A3A8B":avg===null?"var(--text2)":avg>=70?"#27500A":avg>=40?"#92400E":"#991B1B";
     const badgeTxt = g.isVacant?"No billing":avg===null?"—":avg+"%";
 
@@ -2215,7 +2210,7 @@ function _renderSOGroupedList(groups, renderDBCard) {
           <span style="background:${badgeBg};color:${badgeTx};border-radius:4px;font-size:10px;padding:2px 8px;font-weight:700">${badgeTxt}</span>
           <span style="font-size:12px;color:var(--text2);margin-left:2px">${isOpen?"▾":"▸"}</span>
         </div>
-        ${isOpen ? dbCards.join("") : ""}
+        ${isOpen ? `<div>${dbCards.join("")}</div>` : ""}
       </div>`;
   }).join("");
 }
@@ -2355,6 +2350,13 @@ function renderTrendMonthly() {
           </div>
           ${isOpen?`<div class="ent-body"><div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px">MONTHLY — TY vs LY</div>${monthBars||`<div style="font-size:12px;color:var(--text2)">No data yet</div>`}</div>`:""}
         </div>`;
+      },
+      (db) => {
+        // Monthly avg pct for badge
+        const tyData = getHistData(db.id, r=>r.fy===STATE.curFY&&r.weekLabel==="Monthly");
+        const tyAvg = tyData.filter(r=>r.achPct!=null).length
+          ? Math.round(tyData.filter(r=>r.achPct!=null).reduce((a,r)=>a+(r.achPct||0),0)/tyData.filter(r=>r.achPct!=null).length*100) : null;
+        return tyAvg;
       });
     }
   }
@@ -2510,6 +2512,12 @@ function renderTrendL3M() {
       finalCards = _renderSOGroupedList(groups, (db) => {
         const ent = entities.find(e=>e.id===db.id);
         return ent ? buildL3MCard(ent) : "";
+      }, (db) => {
+        // L3M avg pct for badge
+        const tyRows = getHistData(db.id, r=>l3mMonths.some(m=>m.mon===r.month&&m.yr===r.yr)&&r.weekLabel==="Monthly");
+        const tyVal = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
+        if(!db.priTgt||!tyVal) return null;
+        return Math.round(tyVal/db.priTgt*100);
       });
     }
   }
@@ -2685,6 +2693,13 @@ function renderTrendWeekly() {
       finalCards = _renderSOGroupedList(groups, (db) => {
         const ent = entities.find(e=>e.id===db.id);
         return ent ? buildWeeklyCard(ent) : "";
+      }, (db) => {
+        // MTD pct for badge
+        const wRows = getHistData(db.id, r=>r.month===curMonthName&&r.yr===curYear&&r.weekLabel!=="Monthly");
+        const mRow = getHistData(db.id, r=>r.month===curMonthName&&r.yr===curYear&&r.weekLabel==="Monthly")[0];
+        const mtd = wRows.length?wRows.reduce((a,r)=>a+(r.achieved||0),0):(mRow?mRow.achieved||0:0);
+        if(!db.priTgt||!mtd) return null;
+        return Math.round(mtd/db.priTgt*100);
       });
     }
   }
