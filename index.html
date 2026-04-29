@@ -2192,9 +2192,18 @@ function _renderSOGroupedList(groups, renderDBCard, getAvgPct) {
     // Build DB cards
     const dbCards = g.dbs.map(db => renderDBCard(db)).filter(Boolean);
 
-    // Avg % badge — use caller-provided function for correct period
-    const avgPcts = getAvgPct ? g.dbs.map(db=>getAvgPct(db)).filter(v=>v!==null) : [];
-    const avg = avgPcts.length ? Math.round(avgPcts.reduce((a,b)=>a+b,0)/avgPcts.length) : null;
+    // Weighted avg % badge — sum(ach) / sum(tgt)
+    let totalAch = 0, totalTgt = 0;
+    if(getAvgPct) {
+      g.dbs.forEach(db => {
+        const result = getAvgPct(db);
+        if(result && typeof result === "object") {
+          totalAch += result.ach||0;
+          totalTgt += result.tgt||0;
+        }
+      });
+    }
+    const avg = totalTgt > 0 ? Math.round(totalAch/totalTgt*100) : null;
     const badgeBg = g.isVacant?"#DCE8FF":avg===null?"var(--color-background-secondary)":avg>=70?"#EAF3DE":avg>=40?"#FEF3C7":"#FEE2E2";
     const badgeTx = g.isVacant?"#1A3A8B":avg===null?"var(--text2)":avg>=70?"#27500A":avg>=40?"#92400E":"#991B1B";
     const badgeTxt = g.isVacant?"No billing":avg===null?"—":avg+"%";
@@ -2352,11 +2361,11 @@ function renderTrendMonthly() {
         </div>`;
       },
       (db) => {
-        // Monthly avg pct for badge
+         }, (db) => {
         const tyData = getHistData(db.id, r=>r.fy===STATE.curFY&&r.weekLabel==="Monthly");
-        const tyAvg = tyData.filter(r=>r.achPct!=null).length
-          ? Math.round(tyData.filter(r=>r.achPct!=null).reduce((a,r)=>a+(r.achPct||0),0)/tyData.filter(r=>r.achPct!=null).length*100) : null;
-        return tyAvg;
+        const ach = tyData.reduce((a,r)=>a+(r.achieved||0),0);
+        const months = new Set(tyData.map(r=>r.month)).size || 1;
+        return {ach, tgt:(db.priTgt||0)*months};
       });
     }
   }
@@ -2513,12 +2522,10 @@ function renderTrendL3M() {
         const ent = entities.find(e=>e.id===db.id);
         return ent ? buildL3MCard(ent) : "";
       }, (db) => {
-        // L3M avg pct for badge — target × 3 months
-        const tyRows = getHistData(db.id, r=>l3mMonths.includes(r.month)&&r.weekLabel==="Monthly");
-        const tyVal = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
-        const l3mTgt = (db.priTgt||0) * 3;
-        if(!l3mTgt||!tyVal) return null;
-        return Math.round(tyVal/l3mTgt*100);
+        const tyRows = getHistData(db.id, r=>l3mMonths.includes(r.month)&&r.weekLabel==="Monthly"&&r.fy===getFYFromMonth(r.month,curYearNum()));
+        const ach = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
+        const tgt = (db.priTgt||0) * 3;
+        return {ach, tgt};
       });
     }
   }
@@ -2695,12 +2702,12 @@ function renderTrendWeekly() {
         const ent = entities.find(e=>e.id===db.id);
         return ent ? buildWeeklyCard(ent) : "";
       }, (db) => {
-        // MTD pct for badge
-        const wRows = getHistData(db.id, r=>r.month===curMonthName&&r.fy===getFYFromMonth(curMonthName,curYear)&&r.weekLabel!=="Monthly");
-        const mRow = getHistData(db.id, r=>r.month===curMonthName&&r.fy===getFYFromMonth(curMonthName,curYear)&&r.weekLabel==="Monthly")[0];
-        const mtd = wRows.length?wRows.reduce((a,r)=>a+(r.achieved||0),0):(mRow?mRow.achieved||0:0);
-        if(!db.priTgt||!mtd) return null;
-        return Math.round(mtd/db.priTgt*100);
+        // MTD ach/tgt for badge
+        const curFY2=getFYFromMonth(curMonthName,curYear);
+        const wRows2 = getHistData(db.id, r=>r.month===curMonthName&&r.fy===curFY2&&r.weekLabel!=="Monthly");
+        const mRow2 = getHistData(db.id, r=>r.month===curMonthName&&r.fy===curFY2&&r.weekLabel==="Monthly")[0];
+        const ach = wRows2.length?wRows2.reduce((a,r)=>a+(r.achieved||0),0):(mRow2?mRow2.achieved||0:0);
+        return {ach, tgt:db.priTgt||0};
       });
     }
   }
