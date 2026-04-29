@@ -2513,11 +2513,12 @@ function renderTrendL3M() {
         const ent = entities.find(e=>e.id===db.id);
         return ent ? buildL3MCard(ent) : "";
       }, (db) => {
-        // L3M avg pct for badge
+        // L3M avg pct for badge — target × 3 months
         const tyRows = getHistData(db.id, r=>l3mMonths.includes(r.month)&&r.weekLabel==="Monthly");
         const tyVal = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
-        if(!db.priTgt||!tyVal) return null;
-        return Math.round(tyVal/db.priTgt*100);
+        const l3mTgt = (db.priTgt||0) * 3;
+        if(!l3mTgt||!tyVal) return null;
+        return Math.round(tyVal/l3mTgt*100);
       });
     }
   }
