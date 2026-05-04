@@ -3407,7 +3407,9 @@ function _applyRSMData(rsmData) {
   });
 
   // Override MASTER with Sheet entity data
+  console.log("entityMap keys:", Object.keys(rsmData.entityMap||{}));
   Object.entries(rsmData.entityMap||{}).forEach(([rsmName, data])=>{
+    console.log("Setting MASTER for:", rsmName, "dbs:", data.dbs?.length, "first db vehicles:", data.dbs?.[0]?.vehicles);
     if(window.MASTER) MASTER[rsmName] = data;
   });
 
