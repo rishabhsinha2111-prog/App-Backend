@@ -402,8 +402,8 @@ const FY_MONTHS_ORDER = MONTHS;
 const MONTH_TO_QTR = {Apr:"Q1",May:"Q1",Jun:"Q1",Jul:"Q2",Aug:"Q2",Sep:"Q2",Oct:"Q3",Nov:"Q3",Dec:"Q3",Jan:"Q4",Feb:"Q4",Mar:"Q4"};
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat"];
 // Focus SKU constants — always defined here so they're available before data.js
-const FOCUS_SKUS     = ["10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
-const FOCUS_SKU_KEYS = ["mrp10","papdiGathiya","chilliWheel","puffGarlic"];
+const FOCUS_SKUS     = ["Total","10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
+const FOCUS_SKU_KEYS = ["total","mrp10","papdiGathiya","chilliWheel","puffGarlic"];
 
 // ── USER STORE + MASTER DATA ──────────────────────────────────
 // Loaded from data.js — edit that file to change RSMs/PINs/DBs
@@ -3364,8 +3364,8 @@ async function loadRSMDataFromSheet() {
           const type    = (r[1]||"DB").trim().toUpperCase();
           const town    = r[2]||"";
           const area    = r[3]||"Active";
-          const priTgt  = +r[4]||0;
-          const secTgt  = +r[5]||0;
+          const priTgt  = (+r[4]||0) * 100000;  // Sheet stores in lakhs — convert to rupees
+          const secTgt  = (+r[5]||0) * 100000;  // Sheet stores in lakhs — convert to rupees
           const mustVis = (r[6]||"").toString().toLowerCase()==="yes";
           const soName      = (r[7]||"").trim().toLowerCase(); // col H: SO Name
           const vehicles    = +r[8]||0;                        // col I: Vehicles
