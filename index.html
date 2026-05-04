@@ -402,8 +402,8 @@ const FY_MONTHS_ORDER = MONTHS;
 const MONTH_TO_QTR = {Apr:"Q1",May:"Q1",Jun:"Q1",Jul:"Q2",Aug:"Q2",Sep:"Q2",Oct:"Q3",Nov:"Q3",Dec:"Q3",Jan:"Q4",Feb:"Q4",Mar:"Q4"};
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat"];
 // Focus SKU constants — always defined here so they're available before data.js
-const FOCUS_SKUS     = ["Total","10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
-const FOCUS_SKU_KEYS = ["total","mrp10","papdiGathiya","chilliWheel","puffGarlic"];
+const FOCUS_SKUS     = ["10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
+const FOCUS_SKU_KEYS = ["mrp10","papdiGathiya","chilliWheel","puffGarlic"];
 
 // ── USER STORE + MASTER DATA ──────────────────────────────────
 // Loaded from data.js — edit that file to change RSMs/PINs/DBs
@@ -993,16 +993,10 @@ function _getMTDStats(rsmName) {
 function _getRouteStats(rsmName) {
   const master=MASTER[rsmName]; if(!master) return {active:0,planned:0,target:0};
   const allDBs=master.dbs||[];
-  const planned=allDBs.reduce((s,db)=>s+(+db.vehicles||0),0);
-  const target=allDBs.reduce((s,db)=>s+(+db.routeTarget||+db.vehicles||0),0);
-  const cm=curMonthStr(), cy=curYearNum();
-  const curFY=getFYFromMonth(cm,cy);
-  let active=0;
-  allDBs.forEach(db=>{
-    const row=(STATE.history[db.id]||[]).find(h=>h.month===cm&&h.fy===curFY&&h.weekLabel==="Monthly");
-    if(row&&(+row.achieved||0)>0) active++;
-  });
-  return {active,planned,target};
+  // active = sum of current vehicles (col I), target = sum of route target (col J)
+  const active  = allDBs.reduce((s,db)=>s+(+db.vehicles||0),0);
+  const target  = allDBs.reduce((s,db)=>s+(+db.routeTarget||0),0);
+  return {active, planned:active, target};
 }
 
 function _getSKUStats(rsmName) {
@@ -1693,16 +1687,14 @@ function renderRoutesDrillDown() {
   const curFY    = getFYFromMonth(curMonth, curYearNum());
   const allDBs   = master.dbs||[];
 
-  // Route stats per DB
+  // Route stats per DB — active = current vehicles, target = planned vehicles
   const dbRoutes = allDBs.map(db=>{
-    const row = (hist[db.id]||[]).find(h=>h.month===curMonth&&h.fy===curFY&&h.weekLabel==="Monthly");
-    const active = row && (+row.achieved||0)>0;
-    return {db, active, ach:row?(+row.achieved||0):0};
+    return {db, vehicles:+db.vehicles||0, routeTarget:+db.routeTarget||0};
   });
 
-  const totalActive  = dbRoutes.filter(r=>r.active).length;
-  const totalPlanned = allDBs.reduce((s,db)=>s+(+db.vehicles||0),0);
-  const totalTarget  = allDBs.reduce((s,db)=>s+(+db.routeTarget||+db.vehicles||0),0);
+  const totalActive  = dbRoutes.reduce((s,r)=>s+r.vehicles,0);
+  const totalTarget  = dbRoutes.reduce((s,r)=>s+r.routeTarget,0);
+  const totalPlanned = totalTarget;
   const pct = totalPlanned>0?Math.round(totalActive/totalPlanned*100):0;
   const barColor = pct>=70?"#1D9E75":pct>=40?"#EF9F27":"#E24B4A";
 
@@ -1745,13 +1737,13 @@ function renderRoutesDrillDown() {
       <div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden">
         ${dbRoutes.map((r,i)=>`
           <div style="display:flex;align-items:center;gap:9px;padding:9px 13px;${i>0?'border-top:0.5px solid var(--border)':''}">
-            <div style="width:8px;height:8px;border-radius:50%;background:${r.active?"#1D9E75":"#E24B4A"};flex-shrink:0"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:${r.vehicles>0?"#1D9E75":"#E24B4A"};flex-shrink:0"></div>
             <div style="flex:1;min-width:0">
               <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.db.name}</div>
               <div style="font-size:10px;color:var(--text2)">${r.db.town||"—"} · ${+r.db.vehicles||0} vehicles</div>
             </div>
-            <span style="background:${r.active?"#EAF3DE":"#FEE2E2"};color:${r.active?"#27500A":"#991B1B"};border-radius:4px;font-size:10px;padding:2px 8px;font-weight:500;flex-shrink:0">
-              ${r.active?"Active":"No billing"}
+            <span style="font-size:11px;font-weight:500;color:${r.vehicles>0?"#1D9E75":"#E24B4A"};flex-shrink:0">
+              ${r.vehicles}/${r.routeTarget}
             </span>
           </div>`).join("")}
       </div>
