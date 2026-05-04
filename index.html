@@ -3347,7 +3347,7 @@ async function loadRSMDataFromSheet() {
           if(first==="←"||first==="↑"||first==="↓"||first==="*") return false;
           return true;
         });
-        console.log(`${rsmName}: total CSV rows=${allEntRows.length}, skip=${entSkip}, kept=${entRows.length}`);
+
 
         const ss=[], dbs=[];
         entRows.forEach((r,i)=>{
@@ -3368,7 +3368,7 @@ async function loadRSMDataFromSheet() {
           else dbs.push({id, name, ssId:"", priTgt, secTgt, area, mustVisit:mustVis, soName, vehicles, routeTarget});
         });
         entityMap[rsmName] = {ss, dbs};
-        console.log(`Loaded ${rsmName}: ${ss.length} SS, ${dbs.length} DBs, areas:`, dbs.map(d=>d.name+":"+d.area));
+
       } catch(e){ console.log("Entity fetch failed for",rsmName,e); }
     }
 
@@ -3399,9 +3399,7 @@ function _applyRSMData(rsmData) {
   });
 
   // Override MASTER with Sheet entity data
-  console.log("entityMap keys:", Object.keys(rsmData.entityMap||{}));
   Object.entries(rsmData.entityMap||{}).forEach(([rsmName, data])=>{
-    console.log("Setting MASTER for:", rsmName, "dbs:", data.dbs?.length, "first db vehicles:", data.dbs?.[0]?.vehicles);
     if(window.MASTER) MASTER[rsmName] = data;
   });
 
