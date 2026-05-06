@@ -3468,14 +3468,20 @@ async function loadHistoryFromSheet() { // returns Promise — always await or .
   if(!sheetId || sheetId==="YOUR_SHEET_ID_HERE") return;
   try {
     const ss = $("sync-status"); if(ss) ss.textContent = "Loading data...";
-    // Use export endpoint — handles large sheets without truncation
-    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&sheet=5_History`;
+    // Fetch only rows for this RSM using tq filter — avoids large sheet truncation
+    const _isManager = STATE.user?.role==="manager";
+    const filterName = _isManager ? null : (STATE.user?.role==="so" && STATE.user?.parentRSM ? STATE.user.parentRSM : STATE.user.name);
+    const dispName = filterName ? filterName.split(" ").map(w=>w[0].toUpperCase()+w.slice(1)).join(" ") : null;
+    const tqFilter = dispName ? `where+A+=+'${encodeURIComponent(dispName)}'` : "select+*";
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=5_History&tq=${tqFilter}`;
     let rows = [];
     try {
       const csvRes = await fetch(csvUrl);
       if(csvRes.ok) {
         const csvText = await csvRes.text();
-        rows = parseCSV(csvText).slice(1); // skip header row
+        if(csvText.trim().length > 100) {
+          rows = parseCSV(csvText).slice(1);
+        }
       }
     } catch(e) { console.log("CSV fetch failed, trying OAuth..."); }
 
