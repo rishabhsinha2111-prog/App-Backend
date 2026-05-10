@@ -2193,6 +2193,17 @@ function getHistData(entityId, filterFn) {
   return filterFn ? all.filter(filterFn) : all;
 }
 
+// Gets monthly achieved — uses Monthly row if exists, else sums weekly rows
+function getMonthlyAch(entityId, month, fy) {
+  const all = STATE.history[entityId] || [];
+  // Try Monthly row first
+  const monthly = all.find(r=>r.month===month && r.fy===fy && r.weekLabel==="Monthly");
+  if(monthly) return monthly.achieved||0;
+  // Fall back to summing weekly rows
+  const weekly = all.filter(r=>r.month===month && r.fy===fy && r.weekLabel!=="Monthly");
+  return weekly.reduce((s,r)=>s+(r.achieved||0),0);
+}
+
 function getFYFromMonth(month, year) {
   // Indian FY: Apr=start, Mar=end
   // Jan/Feb/Mar belong to the FY that started the previous April
@@ -2503,16 +2514,14 @@ function renderTrendL3M() {
   const curFY  = fys[fys.length-1] || "FY2026-27";
   const prevFY = fys[fys.indexOf(curFY)-1] || null;
 
-  // Team L3M totals — match each month to its correct FY
+  // Team L3M totals — use getMonthlyAch to include weekly fallback
   let tyTotal=0, lyTotal=0;
   entities.forEach(ent=>{
     tyMonthFYs.forEach(({month, fy})=>{
-      const r = (hist[ent.id]||[]).find(h=>h.month===month && h.fy===fy && h.weekLabel==="Monthly");
-      if(r) tyTotal += r.achieved||0;
+      tyTotal += getMonthlyAch(ent.id, month, fy);
     });
     lyMonthFYs.forEach(({month, fy})=>{
-      const r = (hist[ent.id]||[]).find(h=>h.month===month && h.fy===fy && h.weekLabel==="Monthly");
-      if(r) lyTotal += r.achieved||0;
+      lyTotal += getMonthlyAch(ent.id, month, fy);
     });
   });
   const growth = lyTotal > 0 ? Math.round((tyTotal-lyTotal)/lyTotal*100) : 0;
@@ -2582,10 +2591,8 @@ function renderTrendL3M() {
   // Build entity card for a single DB (used in SO grouping)
   const buildL3MCard = (ent) => {
     const isOpen = STATE.expanded[ent.id]||false;
-    const tyRows = getHistData(ent.id, r=>l3mMonths.includes(r.month) && r.weekLabel==="Monthly" && r.fy===getFYFromMonth(r.month, curYearNum()));
-    const lyRows = getHistData(ent.id, r=>l3mMonths.includes(r.month) && r.weekLabel==="Monthly" && r.fy===getFYFromMonth(r.month, curYearNum()-1));
-    const tyVal = tyRows.reduce((a,r)=>a+(r.achieved||0),0);
-    const lyVal = lyRows.reduce((a,r)=>a+(r.achieved||0),0);
+    const tyVal = l3mMonths.reduce((s,m)=>s+getMonthlyAch(ent.id,m,getFYFromMonth(m,curYearNum())),0);
+    const lyVal = l3mMonths.reduce((s,m)=>s+getMonthlyAch(ent.id,m,getFYFromMonth(m,curYearNum()-1)),0);
     const diff = lyVal>0?Math.round((tyVal-lyVal)/lyVal*100):null;
     const diffBadge = diff!=null?(diff>0?`<span class="b b-g">+${diff}%</span>`:diff<0?`<span class="b b-r">${diff}%</span>`:`<span class="b b-gray">flat</span>`):`<span class="b b-gray">No LY</span>`;
     const l3mMax=Math.max(tyVal,lyVal,1);
@@ -2610,9 +2617,9 @@ function renderTrendL3M() {
         const ent = entities.find(e=>e.id===db.id);
         return ent ? buildL3MCard(ent) : "";
       }, (db) => {
-        const tyRows = getHistData(db.id, r=>l3mMonths.includes(r.month)&&r.weekLabel==="Monthly"&&r.fy===getFYFromMonth(r.month,curYearNum()));
-        const lyRows = getHistData(db.id, r=>l3mMonths.includes(r.month)&&r.weekLabel==="Monthly"&&r.fy===getFYFromMonth(r.month,curYearNum()-1));
-        return {ach:tyRows.reduce((a,r)=>a+(r.achieved||0),0), tgt:lyRows.reduce((a,r)=>a+(r.achieved||0),0), isYoY:true};
+        const tyAch = l3mMonths.reduce((s,m)=>s+getMonthlyAch(db.id,m,getFYFromMonth(m,curYearNum())),0);
+        const lyAch = l3mMonths.reduce((s,m)=>s+getMonthlyAch(db.id,m,getFYFromMonth(m,curYearNum()-1)),0);
+        return {ach:tyAch, tgt:lyAch, isYoY:true};
       });
     }
   }
