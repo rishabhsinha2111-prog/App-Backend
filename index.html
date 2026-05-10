@@ -3471,8 +3471,8 @@ async function loadHistoryFromSheet() { // returns Promise — always await or .
     // Fetch only rows for this RSM using tq filter — avoids large sheet truncation
     const _isManager = STATE.user?.role==="manager";
     const filterName = _isManager ? null : (STATE.user?.role==="so" && STATE.user?.parentRSM ? STATE.user.parentRSM : STATE.user.name);
-    const dispName = filterName ? filterName.split(" ").map(w=>w[0].toUpperCase()+w.slice(1)).join(" ") : null;
-    const tqFilter = dispName ? `where+A+=+'${encodeURIComponent(dispName)}'` : "select+*";
+    // Use lower() function in tq to do case-insensitive match
+    const tqFilter = filterName ? `where+lower(A)+%3D+'${encodeURIComponent(filterName.toLowerCase())}'` : "select+*";
     const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=5_History&tq=${tqFilter}`;
     let rows = [];
     try {
