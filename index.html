@@ -2597,7 +2597,10 @@ function renderTrendL3M() {
     const diffBadge = diff!=null?(diff>0?`<span class="b b-g">+${diff}%</span>`:diff<0?`<span class="b b-r">${diff}%</span>`:`<span class="b b-gray">flat</span>`):`<span class="b b-gray">No LY</span>`;
     const l3mMax=Math.max(tyVal,lyVal,1);
     const tyW=Math.round((tyVal/l3mMax)*100); const lyW=Math.round((lyVal/l3mMax)*100);
-    const monthBreakdown=tyRows.map(r=>`<span style="font-size:10px;color:var(--text2)">${r.month}: <b style="color:var(--text)">${fmt(r.achieved||0)}</b></span>`).join(" · ");
+    const monthBreakdown=l3mMonths.map(m=>{
+      const ach=getMonthlyAch(ent.id,m,getFYFromMonth(m,curYearNum()));
+      return `<span style="font-size:10px;color:var(--text2)">${m}: <b style="color:var(--text)">${fmt(ach)}</b></span>`;
+    }).join(" · ");
     return `<div class="ent" style="border-radius:0;border:none;border-bottom:0.5px solid var(--border);margin:0">
       <div class="ent-hdr" onclick="toggleEnt('${ent.id}')">
         <div class="av ${avCls}">${ent.name.slice(0,2).toUpperCase()}</div>
