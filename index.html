@@ -403,8 +403,8 @@ const FY_MONTHS_ORDER = MONTHS;
 const MONTH_TO_QTR = {Apr:"Q1",May:"Q1",Jun:"Q1",Jul:"Q2",Aug:"Q2",Sep:"Q2",Oct:"Q3",Nov:"Q3",Dec:"Q3",Jan:"Q4",Feb:"Q4",Mar:"Q4"};
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat"];
 // Focus SKU constants — always defined here so they're available before data.js
-const FOCUS_SKUS     = ["Total","10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
-const FOCUS_SKU_KEYS = ["total","mrp10","papdiGathiya","chilliWheel","puffGarlic"];
+const FOCUS_SKUS     = ["10 MRP","Papdi Gathiya","Chilli Wheel","Halka Fulka"];
+const FOCUS_SKU_KEYS = ["mrp10","papdiGathiya","chilliWheel","HalkaFulka"];
 
 // ── USER STORE + MASTER DATA ──────────────────────────────────
 // Loaded from data.js — edit that file to change RSMs/PINs/DBs
@@ -1002,7 +1002,7 @@ function _getRouteStats(rsmName) {
 
 function _getSKUStats(rsmName) {
   const _skuTgts=(typeof FOCUS_SKU_TARGETS!=="undefined")?FOCUS_SKU_TARGETS:{};
-  const tgts=_skuTgts[rsmName]||{mrp10:0,papdiGathiya:0,chilliWheel:0,puffGarlic:0};
+  const tgts=_skuTgts[rsmName]||{mrp10:0,papdiGathiya:0,chilliWheel:0,HalkaFulka:0};
   const totalTgt=Object.values(tgts).reduce((s,v)=>s+(+v||0),0);
   const master=MASTER[rsmName]; if(!master) return {ach:0,tgt:totalTgt};
   const cm=curMonthStr(), cy=curYearNum();
@@ -1010,7 +1010,7 @@ function _getSKUStats(rsmName) {
   let totalAch=0;
   [...(master.ss||[]),...(master.dbs||[])].forEach(e=>{
     const row=(STATE.history[e.id]||[]).find(h=>h.month===cm&&h.fy===curFY&&h.weekLabel==="Monthly");
-    if(row) totalAch+=["mrp10","papdiGathiya","chilliWheel","puffGarlic"].reduce((s,k)=>s+(+row[k]||0),0);
+    if(row) totalAch+=["mrp10","papdiGathiya","chilliWheel","HalkaFulka"].reduce((s,k)=>s+(+row[k]||0),0);
   });
   return {ach:totalAch,tgt:totalTgt};
 }
@@ -1595,8 +1595,8 @@ function renderSKUDrillDown() {
   const curMonth= curMonthStr();
   const curFY   = getFYFromMonth(curMonth, curYearNum());
   const skuTgts = (typeof FOCUS_SKU_TARGETS!=="undefined") ? (FOCUS_SKU_TARGETS[rsmName]||{}) : {};
-  const SKU_KEYS= ["mrp10","papdiGathiya","chilliWheel","puffGarlic"];
-  const SKU_LBLS= ["10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic"];
+  const SKU_KEYS= ["mrp10","papdiGathiya","chilliWheel","HalkaFulka"];
+  const SKU_LBLS= ["10 MRP","Papdi Gathiya","Chilli Wheel","Halka Fulka"];
 
   // Total SKU summary
   const totals = SKU_KEYS.map((k,i)=>{
@@ -2123,7 +2123,7 @@ async function syncDailyToSheet(dateKey, month, fy, weekLbl, master, rsmName) {
           ss.secTgt||"", sec, sec&&ss.secTgt?Math.round(sec/ss.secTgt*100)/100:"",
           // Extra cols for pri and SKUs
           pri,
-          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.puffGarlic||0
+          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.HalkaFulka||0
         ]);
       }
     });
@@ -2139,7 +2139,7 @@ async function syncDailyToSheet(dateKey, month, fy, weekLbl, master, rsmName) {
           dayWeekLbl, dayPeriod, month, qtr, fy,
           db.priTgt||"", pri, pri&&db.priTgt?Math.round(pri/db.priTgt*100)/100:"",
           sec,
-          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.puffGarlic||0
+          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.HalkaFulka||0
         ]);
       }
     });
@@ -3335,7 +3335,7 @@ async function loadRSMDataFromSheet() {
           mrp10:        +r[4]||0,
           papdiGathiya: +r[5]||0,
           chilliWheel:  +r[6]||0,
-          puffGarlic:   +r[7]||0,
+          HalkaFulka:   +r[7]||0,
         }
       });
     });
