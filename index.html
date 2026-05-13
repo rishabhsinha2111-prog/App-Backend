@@ -394,6 +394,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
 <script>
 // ── CONFIG — replace with your actual Sheet ID ────────────────
 const DEFAULT_SHEET_ID = "1fbBgWcvlmoIJJnASkOOm_tK318ILgIJq4BLGQ9CtBzk";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwUolsUyIiGSX8OgaqGMwnIZLxahm35S_kJpbHN0P_30EBRD18zhIgz150eWCQhPZQ7/exec";
 const MONTHS = ["Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar"]; // Indian FY order
 const CAL_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; // JS calendar order
 function curMonthStr(){ return CAL_MONTHS[new Date().getMonth()]; }
@@ -402,8 +403,8 @@ const FY_MONTHS_ORDER = MONTHS;
 const MONTH_TO_QTR = {Apr:"Q1",May:"Q1",Jun:"Q1",Jul:"Q2",Aug:"Q2",Sep:"Q2",Oct:"Q3",Nov:"Q3",Dec:"Q3",Jan:"Q4",Feb:"Q4",Mar:"Q4"};
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat"];
 // Focus SKU constants — always defined here so they're available before data.js
-const FOCUS_SKUS     = ["10 MRP","Papdi Gathiya","Chilli Wheel","Halka Fulka"];
-const FOCUS_SKU_KEYS = ["mrp10","papdiGathiya","chilliWheel","halkaFulka"];
+const FOCUS_SKUS     = ["Total","10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic n Herb"];
+const FOCUS_SKU_KEYS = ["total","mrp10","papdiGathiya","chilliWheel","puffGarlic"];
 
 // ── USER STORE + MASTER DATA ──────────────────────────────────
 // Loaded from data.js — edit that file to change RSMs/PINs/DBs
@@ -1001,7 +1002,7 @@ function _getRouteStats(rsmName) {
 
 function _getSKUStats(rsmName) {
   const _skuTgts=(typeof FOCUS_SKU_TARGETS!=="undefined")?FOCUS_SKU_TARGETS:{};
-  const tgts=_skuTgts[rsmName]||{mrp10:0,papdiGathiya:0,chilliWheel:0,halkaFulka:0};
+  const tgts=_skuTgts[rsmName]||{mrp10:0,papdiGathiya:0,chilliWheel:0,puffGarlic:0};
   const totalTgt=Object.values(tgts).reduce((s,v)=>s+(+v||0),0);
   const master=MASTER[rsmName]; if(!master) return {ach:0,tgt:totalTgt};
   const cm=curMonthStr(), cy=curYearNum();
@@ -1009,7 +1010,7 @@ function _getSKUStats(rsmName) {
   let totalAch=0;
   [...(master.ss||[]),...(master.dbs||[])].forEach(e=>{
     const row=(STATE.history[e.id]||[]).find(h=>h.month===cm&&h.fy===curFY&&h.weekLabel==="Monthly");
-    if(row) totalAch+=["mrp10","papdiGathiya","chilliWheel","halkaFulka"].reduce((s,k)=>s+(+row[k]||0),0);
+    if(row) totalAch+=["mrp10","papdiGathiya","chilliWheel","puffGarlic"].reduce((s,k)=>s+(+row[k]||0),0);
   });
   return {ach:totalAch,tgt:totalTgt};
 }
@@ -1594,8 +1595,8 @@ function renderSKUDrillDown() {
   const curMonth= curMonthStr();
   const curFY   = getFYFromMonth(curMonth, curYearNum());
   const skuTgts = (typeof FOCUS_SKU_TARGETS!=="undefined") ? (FOCUS_SKU_TARGETS[rsmName]||{}) : {};
-  const SKU_KEYS= ["mrp10","papdiGathiya","chilliWheel","halkaFulka"];
-  const SKU_LBLS= ["10 MRP","Papdi Gathiya","Chilli Wheel","Halka Fulka"];
+  const SKU_KEYS= ["mrp10","papdiGathiya","chilliWheel","puffGarlic"];
+  const SKU_LBLS= ["10 MRP","Papdi Gathiya","Chilli Wheel","Puff Garlic"];
 
   // Total SKU summary
   const totals = SKU_KEYS.map((k,i)=>{
@@ -2122,7 +2123,7 @@ async function syncDailyToSheet(dateKey, month, fy, weekLbl, master, rsmName) {
           ss.secTgt||"", sec, sec&&ss.secTgt?Math.round(sec/ss.secTgt*100)/100:"",
           // Extra cols for pri and SKUs
           pri,
-          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.halkaFulka||0
+          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.puffGarlic||0
         ]);
       }
     });
@@ -2138,18 +2139,38 @@ async function syncDailyToSheet(dateKey, month, fy, weekLbl, master, rsmName) {
           dayWeekLbl, dayPeriod, month, qtr, fy,
           db.priTgt||"", pri, pri&&db.priTgt?Math.round(pri/db.priTgt*100)/100:"",
           sec,
-          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.halkaFulka||0
+          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.puffGarlic||0
         ]);
       }
     });
 
     if(!values.length) return;
-    const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/5_History!A:Q:append?valueInputOption=USER_ENTERED`;
-    await fetch(url,{method:"POST",
-      headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
-      body:JSON.stringify({values})});
-    $("sync-status").textContent="Synced ✓";
-    setTimeout(()=>$("sync-status").textContent="",3000);
+
+    // Try Apps Script Web App first (no OAuth needed)
+    let synced = false;
+    try {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method:"POST",
+        headers:{"Content-Type":"text/plain"},
+        body: JSON.stringify({sheet:"5_History", values})
+      });
+      const json = await res.json();
+      if(json.status==="ok") synced = true;
+    } catch(e2){ console.log("Apps Script sync error:",e2); }
+
+    // Fallback: try Google Sheets API with OAuth token
+    if(!synced && token) {
+      const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/5_History!A:Q:append?valueInputOption=USER_ENTERED`;
+      await fetch(url,{method:"POST",
+        headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+        body:JSON.stringify({values})});
+      synced = true;
+    }
+
+    if(synced) {
+      $("sync-status").textContent="Synced ✓";
+      setTimeout(()=>$("sync-status").textContent="",3000);
+    }
   } catch(e){ console.log("Daily sync error:",e); }
 }
 
@@ -3116,10 +3137,16 @@ async function syncPJPToSheet(visit) {
       visit.lat||"", visit.lng||"", visit.geoTs||"",
       new Date().toISOString()
     ];
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/PJP_Execution!A:K:append?valueInputOption=USER_ENTERED`;
-    await fetch(url,{method:"POST",
-      headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
-      body:JSON.stringify({values:[row]})});
+    // Try Apps Script first
+    let pjpSynced = false;
+    try {
+      const res = await fetch(APPS_SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify({sheet:"PJP_Execution",values:[row]})});
+      const j = await res.json(); if(j.status==="ok") pjpSynced=true;
+    } catch(e2){}
+    if(!pjpSynced && token) {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/PJP_Execution!A:K:append?valueInputOption=USER_ENTERED`;
+      await fetch(url,{method:"POST",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({values:[row]})});
+    }
   } catch(e){ console.log("PJP sync error:",e); }
 }
 
@@ -3246,12 +3273,16 @@ async function getGoogleToken() {
         client_id: "796721484947-p13kan6u6rleaj2f6jq81tb1s5hsc19o.apps.googleusercontent.com",
         scope: "https://www.googleapis.com/auth/spreadsheets",
         callback: resp => {
-          localStorage.setItem("gtoken", resp.access_token);
-          localStorage.setItem("gtoken_ts", Date.now());
-          resolve(resp.access_token);
-        }
+          if(resp.access_token) {
+            localStorage.setItem("gtoken", resp.access_token);
+            localStorage.setItem("gtoken_ts", Date.now());
+            resolve(resp.access_token);
+          } else { resolve(null); }
+        },
+        error_callback: () => resolve(null)
       });
-      client.requestAccessToken({prompt:""});
+      // Try silent first — only show popup if needed
+      client.requestAccessToken({prompt: "none"});
     } else { resolve(null); }
   });
 }
@@ -3288,7 +3319,7 @@ async function loadRSMDataFromSheet() {
     const masterRows = allMasterRows.slice(skipRows).filter(r=>r[0]&&r[0].trim());
     if(!masterRows.length) throw new Error("No RSM master data");
 
-    // Parse RSM master: Name,Zone,PIN,Role,SKUTotal,SKU10MRP,SKUPapdi,SKUChilli,SKUHalka,Active,ParentRSM(for SOs)
+    // Parse RSM master: Name,Zone,PIN,Role,SKUTotal,SKU10MRP,SKUPapdi,SKUChilli,SKUPuff,Active,ParentRSM(for SOs)
     const rsmList = [];
     masterRows.forEach(r=>{
       if(!r[0]||r[0].trim()==="") return;
@@ -3304,7 +3335,7 @@ async function loadRSMDataFromSheet() {
           mrp10:        +r[4]||0,
           papdiGathiya: +r[5]||0,
           chilliWheel:  +r[6]||0,
-          halkaFulka:   +r[7]||0,
+          puffGarlic:   +r[7]||0,
         }
       });
     });
