@@ -6,16 +6,17 @@
 // ═══════════════════════════════════════════════════════════════
 // ── USER STORE ──────────────────────────────────────────────
 const USERS = {
-  "rajesh upadhyay": {zone:"Pune", pin:"1234", role:"rsm"},
-  "shivaji tamgale": {zone:"Pune Rural", pin:"1234", role:"rsm"},
-  "sambhaji jadhav": {zone:"Satara", pin:"1234", role:"rsm"},
-  "rahul chougule": {zone:"Kolhapur", pin:"1234", role:"rsm"},
-  "nandkumar shirgave": {zone:"Sangli / Solapur / Konkan", pin:"1234", role:"rsm"},
-  "chandpasha pathan": {zone:"Marathwada", pin:"1234", role:"rsm"},
-  "vijay wagh": {zone:"Ahmednagar", pin:"1234", role:"rsm"},
-  "syd. waseemuddin": {zone:"Aurangabad", pin:"1234", role:"rsm"},
-  "naresh lade": {zone:"Jalna", pin:"1234", role:"rsm"},
-  "rishabh sinha":   {zone:"All zones", pin:"9999", role:"manager"}
+  "rajesh upadhyay":    {zone:"Pune",                      pin:"3031", role:"rsm"},
+  "shivaji tamgale":    {zone:"Pune Rural",                 pin:"7573", role:"rsm"},
+  "sambhaji jadhav":    {zone:"Satara",                    pin:"2565", role:"rsm"},
+  "rahul chougule":     {zone:"Kolhapur",                  pin:"6299", role:"rsm"},
+  "nandkumar shirgave": {zone:"Sangli / Solapur / Konkan", pin:"7557", role:"rsm"},
+  "chandpasha pathan":  {zone:"Marathwada",                pin:"1203", role:"rsm"},
+  "vijay wagh":         {zone:"Ahmednagar",                pin:"7556", role:"rsm"},
+  "syd. waseemuddin":   {zone:"Aurangabad",                pin:"1786", role:"rsm"},
+  "naresh lade":        {zone:"Jalna",                     pin:"4503", role:"rsm"},
+  "rishabh sinha":      {zone:"All zones",                 pin:"0004", role:"manager"},
+  "preeti kokirkar":    {zone:"All zones",                 pin:"7561", role:"manager"}
 };
 
 // ── MASTER DATA ──────────────────────────────────────────────
@@ -213,49 +214,50 @@ const MASTER = {
       {id:"db_nar_5",name:"Shree Samarth Agency",ssId:"ss_none",priTgt:200000,area:"Active",mustVisit:false,vehicles:0,routeTarget:0},
     ]
   },
-  "rishabh sinha": {ss:[], dbs:[]}
+  "rishabh sinha":   {ss:[], dbs:[]},
+  "preeti kokirkar": {ss:[], dbs:[]}
 };
 // ── FOCUS SKU TARGETS ─────────────────────────────────────────
 // 4 Focus SKUs tracked monthly per RSM
-// Units: cases (or whatever unit your team uses)
-// Keys: total, mrp10, papdiGathiya, chilliWheel, puffGarlicHerb
+// Units: cases
+// Keys: mrp10, papdiGathiya, chilliWheel, HalkaFulka
 // Update monthly — these are Apr 2026 targets
 
 const FOCUS_SKU_TARGETS = {
   "rajesh upadhyay": {
     month:"Apr", fy:"FY2026-27",
-    total:500, mrp10:150, papdiGathiya:100, chilliWheel:100, puffGarlic:150
+    mrp10:150, papdiGathiya:100, chilliWheel:100, HalkaFulka:150
   },
   "shivaji tamgale": {
     month:"Apr", fy:"FY2026-27",
-    total:400, mrp10:120, papdiGathiya:80, chilliWheel:80, puffGarlic:120
+    mrp10:120, papdiGathiya:80, chilliWheel:80, HalkaFulka:120
   },
   "sambhaji jadhav": {
     month:"Apr", fy:"FY2026-27",
-    total:350, mrp10:100, papdiGathiya:70, chilliWheel:70, puffGarlic:110
+    mrp10:100, papdiGathiya:70, chilliWheel:70, HalkaFulka:110
   },
   "rahul chougule": {
     month:"Apr", fy:"FY2026-27",
-    total:450, mrp10:130, papdiGathiya:90, chilliWheel:90, puffGarlic:140
+    mrp10:130, papdiGathiya:90, chilliWheel:90, HalkaFulka:140
   },
   "nandkumar shirgave": {
     month:"Apr", fy:"FY2026-27",
-    total:600, mrp10:180, papdiGathiya:120, chilliWheel:120, puffGarlic:180
+    mrp10:180, papdiGathiya:120, chilliWheel:120, HalkaFulka:180
   },
   "chandpasha pathan": {
     month:"Apr", fy:"FY2026-27",
-    total:300, mrp10:90, papdiGathiya:60, chilliWheel:60, puffGarlic:90
+    mrp10:90, papdiGathiya:60, chilliWheel:60, HalkaFulka:90
   },
   "vijay wagh": {
     month:"Apr", fy:"FY2026-27",
-    total:350, mrp10:100, papdiGathiya:70, chilliWheel:70, puffGarlic:110
+    mrp10:100, papdiGathiya:70, chilliWheel:70, HalkaFulka:110
   },
   "syd. waseemuddin": {
     month:"Apr", fy:"FY2026-27",
-    total:250, mrp10:70, papdiGathiya:50, chilliWheel:50, puffGarlic:80
+    mrp10:70, papdiGathiya:50, chilliWheel:50, HalkaFulka:80
   },
   "naresh lade": {
     month:"Apr", fy:"FY2026-27",
-    total:200, mrp10:60, papdiGathiya:40, chilliWheel:40, puffGarlic:60
+    mrp10:60, papdiGathiya:40, chilliWheel:40, HalkaFulka:60
   }
 };
