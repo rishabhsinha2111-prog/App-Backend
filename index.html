@@ -549,8 +549,11 @@ function startApp() {
   renderPJP();
   if(navigator.onLine) {
     $("sync-status").textContent = "Loading data...";
-    // Load RSM data first (cached for 24h), then load history
+    // Load RSM data first, then load history
     loadRSMDataFromSheet().then(()=>{
+      // Re-render tracker and PJP now that we have real targets + towns from Sheet
+      renderTracker();
+      renderPJP();
       return loadHistoryFromSheet();
     }).then(()=>{
       renderHome();
@@ -2149,7 +2152,7 @@ async function syncDailyToSheet(dateKey, month, fy, weekLbl, master, rsmName) {
       const sku = d.sku||{};
       if(pri>0||sec>0||Object.values(sku).some(v=>v>0)) {
         values.push([
-          rsmName, "DB", db.name, db.area,
+          rsmName, "DB", db.name, db.town||db.area||"",
           dayWeekLbl, dayPeriod, month, qtr, fy,
           db.priTgt||"", pri, pri&&db.priTgt?Math.round(pri/db.priTgt*100)/100:"",
           sec,
@@ -3419,7 +3422,7 @@ async function loadRSMDataFromSheet() {
           if(!r[0]||r[0].trim()==="") return;
           const name    = r[0].trim();
           const type    = (r[1]||"DB").trim().toUpperCase();
-          const town    = r[2]||"";
+          const town    = (r[2]||"").trim();
           const area    = r[3]||"Active";
           const priTgt  = (+r[4]||0) * 100000;  // Sheet stores in lakhs — convert to rupees
           const secTgt  = (+r[5]||0) * 100000;  // Sheet stores in lakhs — convert to rupees
@@ -3428,9 +3431,11 @@ async function loadRSMDataFromSheet() {
           const vehicles    = +r[8]||0;                        // col I: Vehicles
           const routeTarget = +r[9]||0;                        // col J: Route Target
           const id      = `${type.toLowerCase()}_${rsmName.replace(/\s/g,"_").slice(0,3)}_${i+1}`;
+          // town fallback: extract from after last comma in name if Sheet col C is blank
+          const townResolved = town || (name.includes(",") ? name.split(",").pop().trim() : name);
 
-          if(type==="SS") ss.push({id, name, town, secTgt, priTgt, area, mustVisit:mustVis, soName});
-          else dbs.push({id, name, ssId:"", priTgt, secTgt, area, mustVisit:mustVis, soName, vehicles, routeTarget});
+          if(type==="SS") ss.push({id, name, town:townResolved, secTgt, priTgt, area, mustVisit:mustVis, soName});
+          else dbs.push({id, name, town:townResolved, ssId:"", priTgt, secTgt, area, mustVisit:mustVis, soName, vehicles, routeTarget});
         });
         entityMap[rsmName] = {ss, dbs};
 
