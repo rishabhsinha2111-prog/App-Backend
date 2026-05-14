@@ -204,7 +204,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand)}
     <input class="login-input" id="login-pin" type="password" placeholder="4-digit PIN" maxlength="4" inputmode="numeric">
     <button class="login-btn" onclick="doLogin()">Sign in</button>
     <div class="login-err" id="login-err"></div>
-    <div style="margin-top:20px;font-size:11px;color:rgba(255,255,255,.3);text-align:center">Demo: use any name + PIN 1234 · Manager: name "Manager" + PIN 9999</div>
+    <div style="margin-top:20px;font-size:11px;color:rgba(255,255,255,.3);text-align:center">Enter your name exactly as registered · Manager PIN: 9999</div>
   </div>
 
   <!-- MAIN APP (hidden until login) -->
@@ -1349,15 +1349,21 @@ function adminRejectDB(id) {
   renderAdminHome();
 }
 
-async function _syncApprovalToSheet(p,status) {
-  const sheetId=STATE.sheetId; if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return;
-  const token=STATE.oauthToken; if(!token) return;
+async function _syncApprovalToSheet(p, status) {
   try {
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Pending_DBs:append?valueInputOption=USER_ENTERED`,{
-      method:"POST",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
-      body:JSON.stringify({values:[[p.id,p.rsmName,p.firmName,p.ownerName,p.area,p.district,p.phone,p.vehicles,p.outlets,p.turnover,p.investment,p.gst||"",p.fssai||"",p.brands||"",p.wayOfOp||"",status,new Date().toISOString()]]})
+    const row = [
+      p.id, p.rsmName, p.firmName, p.ownerName,
+      p.area, p.district, p.phone, p.vehicles,
+      p.outlets, p.turnover, p.investment,
+      p.gst||"", p.fssai||"", p.brands||"", p.wayOfOp||"",
+      status, p.rejectNote||"", new Date().toISOString()
+    ];
+    await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      headers: {"Content-Type": "text/plain"},
+      body: JSON.stringify({sheet: "Pending_DBs", values: [row]})
     });
-  } catch(e){ console.log("Approval sync:",e); }
+  } catch(e) { console.log("Approval sync:", e); }
 }
 
 // ── EXPORT ────────────────────────────────────────────────────
@@ -1487,14 +1493,20 @@ function submitNewDB() {
 function _showNDBErr(msg){ const el=$("ndb-err"); if(el){el.textContent=msg;el.style.display="block";} }
 
 async function _syncNewDBToSheet(p) {
-  const sheetId=STATE.sheetId; if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return;
-  const token=STATE.oauthToken; if(!token) return;
   try {
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Pending_DBs:append?valueInputOption=USER_ENTERED`,{
-      method:"POST",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
-      body:JSON.stringify({values:[[p.id,p.rsmName,p.firmName,p.ownerName,p.area,p.district,p.phone,p.vehicles,p.ydVehicles,p.outlets,p.turnover,p.investment,p.gst,p.fssai,p.brands,p.brandAreas,p.wayOfOp,p.submittedAt,"pending"]]})
+    const row = [
+      p.id, p.rsmName, p.firmName, p.ownerName,
+      p.area, p.district, p.phone, p.vehicles, p.ydVehicles,
+      p.outlets, p.turnover, p.investment,
+      p.gst, p.fssai, p.brands, p.brandAreas,
+      p.wayOfOp, p.submittedAt, "pending"
+    ];
+    await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      headers: {"Content-Type": "text/plain"},
+      body: JSON.stringify({sheet: "Pending_DBs", values: [row]})
     });
-  } catch(e){ console.log("New DB sync:",e); }
+  } catch(e) { console.log("New DB sync:", e); }
 }
 
 // ── TRACKER ───────────────────────────────────────────────────
@@ -1953,7 +1965,8 @@ function renderWeeklySummary(rsmName, weekLbl, master) {
   const entries = STATE.dailyEntries?.[rsmName]||{};
   const daysWithData = Object.keys(entries).filter(dk=>
     _weekLabel(dk)===weekLbl &&
-    (Object.values(entries[dk].dbs||{}).some(v=>v>0) || Object.values(entries[dk].ss||{}).some(v=>v>0))
+    (Object.values(entries[dk].dbs||{}).some(v=>v && (v.pri||0)+(v.sec||0)>0) ||
+     Object.values(entries[dk].ss||{}).some(v=>v && (v.pri||0)+(v.sec||0)>0))
   ).sort();
 
   if(!daysWithData.length){
@@ -1964,8 +1977,8 @@ function renderWeeklySummary(rsmName, weekLbl, master) {
   let totalPri=0, totalSec=0;
   daysWithData.forEach(dk=>{
     const e=entries[dk];
-    Object.values(e.dbs||{}).forEach(v=>totalPri+=v);
-    Object.values(e.ss||{}).forEach(v=>totalSec+=v);
+    Object.values(e.dbs||{}).forEach(v=>{ if(v){totalPri+=(v.pri||0); totalSec+=(v.sec||0);} });
+    Object.values(e.ss||{}).forEach(v=>{  if(v){totalPri+=(v.pri||0); totalSec+=(v.sec||0);} });
   });
 
   $("trk-week-summary").innerHTML = `
@@ -1983,12 +1996,17 @@ function renderWeeklySummary(rsmName, weekLbl, master) {
         <div style="font-size:10px;color:var(--text2)">Secondary total</div>
       </div>
     </div>
-    ${daysWithData.map(dk=>`
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border)">
+    ${daysWithData.map(dk=>{
+      const e=entries[dk];
+      let dPri=0,dSec=0;
+      Object.values(e.dbs||{}).forEach(v=>{if(v){dPri+=(v.pri||0);dSec+=(v.sec||0);}});
+      Object.values(e.ss||{}).forEach(v=>{if(v){dPri+=(v.pri||0);dSec+=(v.sec||0);}});
+      return `<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border)">
         <span style="font-weight:600">${_dayLabel(dk).split(",")[0]}</span>
-        <span>Pri: ${fmt(Object.values(entries[dk].dbs||{}).reduce((a,v)=>a+v,0))}</span>
-        <span>Sec: ${fmt(Object.values(entries[dk].ss||{}).reduce((a,v)=>a+v,0))}</span>
-      </div>`).join("")}`;
+        <span>Pri: ${fmt(dPri)}</span>
+        <span>Sec: ${fmt(dSec)}</span>
+      </div>`;
+    }).join("")}`;
 }
 
 
@@ -2085,7 +2103,7 @@ function saveTracker() {
 
   // Sync day row to Sheet
   if(navigator.onLine) syncDailyToSheet(dateKey, month, fy, weekLbl, master, u.name);
-  else queueSync(weekLbl, month);
+  else queueSync(dateKey, u.name);
 
   $("trk-msg").textContent = "Saved ✓ — " + _dayLabel(dateKey);
   setTimeout(()=>$("trk-msg").textContent="", 3000);
@@ -3200,38 +3218,72 @@ function saveSheetId() {
 }
 
 // ── GOOGLE SHEETS SYNC ────────────────────────────────────────
-async function syncToSheet(week, month, master, rsmName) {
-  const sheetId = STATE.sheetId;
-  if(!sheetId || sheetId==="YOUR_SHEET_ID_HERE") return;
-
+// Writes rolled-up weekly totals to 5_History
+// Columns: A=RSM, B=EntityType, C=EntityName, D=Town,
+//          E=WeekLabel, F=PeriodLabel, G=Month, H=Quarter,
+//          I=FY, J=Target(lakhs), K=Achieved(lakhs), L=Ach%,
+//          M=PriBilling, N=10MRP, O=Papdi, P=Chilli, Q=HalkaFulka
+async function syncToSheet(dateKey, master, rsmName) {
   try {
-    const values = [];
-    master.ss.forEach((ss,i)=>{
-      const db = master.dbs[i]||master.dbs[0];
-      const sh = STATE.history[ss.id]||[];
-      const dh = STATE.history[db.id]||[];
-      const sw = sh.find(h=>h.week===week);
-      const dw = dh.find(h=>h.week===week);
-      if(sw||dw) values.push([
-        rsmName, week, month,
-        ss.name, ss.town, db.name, db.area,
-        ss.secTgt, sw?.secAch||0, (sw?.secPct||0)/100,
-        db.priTgt, dw?.priAch||0, (dw?.priPct||0)/100,
-        0, ""
-      ]);
+    const weekLbl  = _weekLabel(dateKey);
+    const month    = _monthFromKey(dateKey);
+    const fy       = _fyFromKey(dateKey);
+    const quarter  = MONTH_TO_QTR[month] || "";
+    const values   = [];
+
+    master.ss.forEach(ss => {
+      const weekSec = _getWeeklyEntTotal(rsmName, ss.id, "ss", "sec", weekLbl);
+      const weekPri = _getWeeklyEntTotal(rsmName, ss.id, "ss", "pri", weekLbl);
+      const skuRow  = {};
+      FOCUS_SKU_KEYS.forEach(k => { skuRow[k] = _getWeeklyEntSKUTotal(rsmName, ss.id, k, weekLbl); });
+      if(weekSec > 0 || weekPri > 0) {
+        const tgtL   = (ss.secTgt||0) / 100000;
+        const achL   = weekSec / 100000;
+        const achPct = tgtL > 0 ? Math.round(achL/tgtL*100)/100 : "";
+        values.push([
+          rsmName, "SS", ss.name, ss.town||"",
+          weekLbl, `${month} ${fy}`, month, quarter, fy,
+          tgtL, achL, achPct,
+          (weekPri/100000).toFixed(2),
+          skuRow.mrp10||0, skuRow.papdiGathiya||0,
+          skuRow.chilliWheel||0, skuRow.HalkaFulka||0
+        ]);
+      }
+    });
+
+    master.dbs.forEach(db => {
+      const weekPri = _getWeeklyEntTotal(rsmName, db.id, "db", "pri", weekLbl);
+      const weekSec = _getWeeklyEntTotal(rsmName, db.id, "db", "sec", weekLbl);
+      const skuRow  = {};
+      FOCUS_SKU_KEYS.forEach(k => { skuRow[k] = _getWeeklyEntSKUTotal(rsmName, db.id, k, weekLbl); });
+      if(weekPri > 0 || weekSec > 0) {
+        const tgtL   = (db.priTgt||0) / 100000;
+        const achL   = weekPri / 100000;
+        const achPct = tgtL > 0 ? Math.round(achL/tgtL*100)/100 : "";
+        values.push([
+          rsmName, "DB", db.name, db.area||"",
+          weekLbl, `${month} ${fy}`, month, quarter, fy,
+          tgtL, achL, achPct,
+          (weekSec/100000).toFixed(2),
+          skuRow.mrp10||0, skuRow.papdiGathiya||0,
+          skuRow.chilliWheel||0, skuRow.HalkaFulka||0
+        ]);
+      }
     });
 
     if(!values.length) return;
-    await fetch(APPS_SCRIPT_URL,{
-      method:"POST",
-      headers:{"Content-Type":"text/plain"},
-      body:JSON.stringify({sheet:"5_History",values})
+
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      headers: {"Content-Type": "text/plain"},
+      body: JSON.stringify({sheet: "5_History", values})
     });
-    $("sync-status").textContent = "Synced to Sheet ✓";
-    setTimeout(()=>$("sync-status").textContent="",3000);
+
+    const ss_ = $("sync-status");
+    if(ss_) { ss_.textContent = "Synced to Sheet ✓"; setTimeout(()=>ss_.textContent="", 3000); }
   } catch(e) {
-    console.log("Sync error:",e);
-    queueSync(week, month);
+    console.log("Sync error:", e);
+    queueSync(dateKey, rsmName);
   }
 }
 
@@ -3597,10 +3649,10 @@ async function loadHistoryFromSheet() { // returns Promise — always await or .
   }
 }
 
-function queueSync(week, month) {
+function queueSync(dateKey, rsmName) {
   const queue = JSON.parse(localStorage.getItem("syncQueue")||"[]");
-  queue.push({week,month,rsmName:STATE.user.name,ts:Date.now()});
-  localStorage.setItem("syncQueue",JSON.stringify(queue));
+  queue.push({dateKey, rsmName: rsmName||STATE.user?.name, ts:Date.now()});
+  localStorage.setItem("syncQueue", JSON.stringify(queue));
 }
 
 // ── OFFLINE ───────────────────────────────────────────────────
@@ -3610,7 +3662,13 @@ window.addEventListener("online",()=>{
   const queue=JSON.parse(localStorage.getItem("syncQueue")||"[]");
   queue.forEach(q=>{
     const master=MASTER[q.rsmName];
-    if(master) syncToSheet(q.week,q.month,master,q.rsmName);
+    if(master) syncDailyToSheet(
+      q.dateKey,
+      _monthFromKey(q.dateKey),
+      _fyFromKey(q.dateKey),
+      _weekLabel(q.dateKey),
+      master, q.rsmName
+    );
   });
   localStorage.removeItem("syncQueue");
   setTimeout(()=>$("sync-status").textContent="",4000);
