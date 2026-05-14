@@ -2106,8 +2106,6 @@ async function syncDailyToSheet(dateKey, month, fy, weekLbl, master, rsmName) {
   const dayPeriod  = `${dayName} ${month}`;
 
   try {
-    const token = await getGoogleToken();
-    if(!token) return;
     const values = [];
 
     master.ss.forEach(ss=>{
@@ -2115,15 +2113,13 @@ async function syncDailyToSheet(dateKey, month, fy, weekLbl, master, rsmName) {
       const pri = d.pri||0;
       const sec = d.sec||0;
       const sku = d.sku||{};
-      if(pri>0||sec>0) {
-        // One row per SS per day: cols A-L + 4 SKU cols M-P
+      if(pri>0||sec>0||Object.values(sku).some(v=>v>0)) {
         values.push([
           rsmName, "SS", ss.name, ss.town,
           dayWeekLbl, dayPeriod, month, qtr, fy,
           ss.secTgt||"", sec, sec&&ss.secTgt?Math.round(sec/ss.secTgt*100)/100:"",
-          // Extra cols for pri and SKUs
           pri,
-          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.HalkaFulka||0
+          sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.HalkaFulka||0
         ]);
       }
     });
@@ -2133,43 +2129,30 @@ async function syncDailyToSheet(dateKey, month, fy, weekLbl, master, rsmName) {
       const pri = d.pri||0;
       const sec = d.sec||0;
       const sku = d.sku||{};
-      if(pri>0||sec>0) {
+      if(pri>0||sec>0||Object.values(sku).some(v=>v>0)) {
         values.push([
           rsmName, "DB", db.name, db.area,
           dayWeekLbl, dayPeriod, month, qtr, fy,
           db.priTgt||"", pri, pri&&db.priTgt?Math.round(pri/db.priTgt*100)/100:"",
           sec,
-          sku.total||0, sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.HalkaFulka||0
+          sku.mrp10||0, sku.papdiGathiya||0, sku.chilliWheel||0, sku.HalkaFulka||0
         ]);
       }
     });
 
     if(!values.length) return;
 
-    // Try Apps Script Web App first (no OAuth needed)
-    let synced = false;
-    try {
-      const res = await fetch(APPS_SCRIPT_URL, {
-        method:"POST",
-        headers:{"Content-Type":"text/plain"},
-        body: JSON.stringify({sheet:"5_History", values})
-      });
-      const json = await res.json();
-      if(json.status==="ok") synced = true;
-    } catch(e2){ console.log("Apps Script sync error:",e2); }
-
-    // Fallback: try Google Sheets API with OAuth token
-    if(!synced && token) {
-      const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/5_History!A:Q:append?valueInputOption=USER_ENTERED`;
-      await fetch(url,{method:"POST",
-        headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
-        body:JSON.stringify({values})});
-      synced = true;
-    }
-
-    if(synced) {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain"},
+      body: JSON.stringify({sheet:"5_History", values})
+    });
+    const json = await res.json();
+    if(json.status==="ok") {
       $("sync-status").textContent="Synced ✓";
       setTimeout(()=>$("sync-status").textContent="",3000);
+    } else {
+      console.log("Sync failed:", json);
     }
   } catch(e){ console.log("Daily sync error:",e); }
 }
@@ -3129,24 +3112,17 @@ async function syncPJPToSheet(visit) {
   const sheetId = STATE.sheetId;
   if(!sheetId||sheetId==="YOUR_SHEET_ID_HERE") return;
   try {
-    const token = await getGoogleToken();
-    if(!token) return;
     const row = [
       STATE.user.name, visit.week, visit.day, visit.db, visit.ss,
       visit.status, visit.note||"",
       visit.lat||"", visit.lng||"", visit.geoTs||"",
       new Date().toISOString()
     ];
-    // Try Apps Script first
-    let pjpSynced = false;
-    try {
-      const res = await fetch(APPS_SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify({sheet:"PJP_Execution",values:[row]})});
-      const j = await res.json(); if(j.status==="ok") pjpSynced=true;
-    } catch(e2){}
-    if(!pjpSynced && token) {
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/PJP_Execution!A:K:append?valueInputOption=USER_ENTERED`;
-      await fetch(url,{method:"POST",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({values:[row]})});
-    }
+    await fetch(APPS_SCRIPT_URL,{
+      method:"POST",
+      headers:{"Content-Type":"text/plain"},
+      body:JSON.stringify({sheet:"PJP_Execution",values:[row]})
+    });
   } catch(e){ console.log("PJP sync error:",e); }
 }
 
@@ -3246,14 +3222,10 @@ async function syncToSheet(week, month, master, rsmName) {
     });
 
     if(!values.length) return;
-    const token = await getGoogleToken();
-    if(!token) return;
-
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/5_History!A:P:append?valueInputOption=USER_ENTERED`;
-    await fetch(url,{
+    await fetch(APPS_SCRIPT_URL,{
       method:"POST",
-      headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
-      body:JSON.stringify({values})
+      headers:{"Content-Type":"text/plain"},
+      body:JSON.stringify({sheet:"5_History",values})
     });
     $("sync-status").textContent = "Synced to Sheet ✓";
     setTimeout(()=>$("sync-status").textContent="",3000);
